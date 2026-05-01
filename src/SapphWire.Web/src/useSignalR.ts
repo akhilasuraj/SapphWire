@@ -1,9 +1,5 @@
 import { useState, useEffect } from "react";
-import {
-  HubConnectionBuilder,
-  HubConnectionState,
-  LogLevel,
-} from "@microsoft/signalr";
+import { HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
@@ -28,16 +24,8 @@ export function useSignalR(hubUrl: string) {
     setStatus("connecting");
     connection
       .start()
-      .then(() => {
-        setStatus(
-          connection.state === HubConnectionState.Connected
-            ? "connected"
-            : "disconnected",
-        );
-      })
-      .catch(() => {
-        setStatus("disconnected");
-      });
+      .then(() => setStatus("connected"))
+      .catch(() => setStatus("disconnected"));
 
     return () => {
       connection.stop();

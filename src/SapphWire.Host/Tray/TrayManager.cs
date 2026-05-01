@@ -15,9 +15,6 @@ public class TrayManager : IDisposable
 
     public void Initialize()
     {
-        // H.NotifyIcon setup is Windows-only and requires a UI thread.
-        // Actual tray icon registration happens at runtime on Windows.
-        // This skeleton provides the menu action handlers.
     }
 
     public void OpenDashboard()
@@ -27,7 +24,6 @@ public class TrayManager : IDisposable
 
     public void PauseMonitoring()
     {
-        // No-op stub for v1 skeleton
     }
 
     public void Quit()
@@ -37,6 +33,5 @@ public class TrayManager : IDisposable
 
     public void Dispose()
     {
-        // Cleanup tray icon resources
     }
 }

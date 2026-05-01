@@ -4,7 +4,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mock = vi.hoisted(() => ({
   start: vi.fn(),
   stop: vi.fn(),
-  state: "Connected" as string,
   handlers: {} as Record<string, (...args: unknown[]) => void>,
   reconnectingCb: null as (() => void) | null,
   reconnectedCb: null as (() => void) | null,
@@ -38,13 +37,9 @@ vi.mock("@microsoft/signalr", () => ({
         },
         start: () => mock.start(),
         stop: () => mock.stop(),
-        get state() {
-          return mock.state;
-        },
       };
     }
   },
-  HubConnectionState: { Connected: "Connected" },
   LogLevel: { Information: 1 },
 }));
 
@@ -54,7 +49,6 @@ describe("useSignalR", () => {
   beforeEach(() => {
     mock.start.mockReset().mockResolvedValue(undefined);
     mock.stop.mockReset().mockResolvedValue(undefined);
-    mock.state = "Connected";
     mock.handlers = {};
     mock.reconnectingCb = null;
     mock.reconnectedCb = null;
