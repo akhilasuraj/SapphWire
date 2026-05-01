@@ -1,6 +1,8 @@
 {
   "scripts": {
-    "ralph": "npx tsx .sandcastle/main.mts"
+    "ralph": "npx tsx .sandcastle/main.mts",
+    "typecheck": "npm run typecheck --prefix src/SapphWire.Web",
+    "test": "npm run test --prefix src/SapphWire.Web"
   },
   "devDependencies": {
     "@ai-hero/sandcastle": "^0.5.6"
