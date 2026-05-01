@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   HubConnectionBuilder,
   HubConnectionState,
-  HubConnection,
   LogLevel,
 } from "@microsoft/signalr";
 
@@ -10,7 +9,6 @@ export type ConnectionStatus = "disconnected" | "connecting" | "connected";
 
 export function useSignalR(hubUrl: string) {
   const [status, setStatus] = useState<ConnectionStatus>("disconnected");
-  const connectionRef = useRef<HubConnection | null>(null);
 
   useEffect(() => {
     const connection = new HubConnectionBuilder()
@@ -18,8 +16,6 @@ export function useSignalR(hubUrl: string) {
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Information)
       .build();
-
-    connectionRef.current = connection;
 
     connection.on("Pong", () => {
       setStatus("connected");
