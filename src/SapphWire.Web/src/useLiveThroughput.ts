@@ -27,10 +27,10 @@ export function useLiveThroughput(
 
     connection.on("ThroughputSnapshot", onSnapshot);
     connection.on("ThroughputDelta", onDelta);
-    connection.invoke("SubscribeLiveThroughput");
+    connection.invoke("SubscribeLiveThroughput").catch(() => {});
 
     return () => {
-      connection.invoke("UnsubscribeLiveThroughput");
+      connection.invoke("UnsubscribeLiveThroughput").catch(() => {});
       connection.off("ThroughputSnapshot", onSnapshot);
       connection.off("ThroughputDelta", onDelta);
       setData([]);

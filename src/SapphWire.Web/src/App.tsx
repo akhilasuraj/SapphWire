@@ -17,7 +17,7 @@ export default function App() {
       <TopBar activeTab={activeTab} onTabChange={setActiveTab} />
       <main className="flex-1 flex flex-col">
         {activeTab === "Graph" ? (
-          <GraphTab connection={connection} />
+          <GraphTab connection={status === "connected" ? connection : null} />
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <ConnectionStatus status={status} />

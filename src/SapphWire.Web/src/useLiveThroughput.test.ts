@@ -157,4 +157,27 @@ describe("useLiveThroughput", () => {
     expect(conn.invoke).toHaveBeenCalledWith("UnsubscribeLiveThroughput");
     expect(conn2.invoke).toHaveBeenCalledWith("SubscribeLiveThroughput");
   });
+
+  it("handles subscribe invoke rejection without crashing", () => {
+    const failConn = createMockConnection();
+    failConn.invoke.mockRejectedValue(new Error("Not connected"));
+
+    const { result } = renderHook(() =>
+      useLiveThroughput(failConn as unknown as Parameters<typeof useLiveThroughput>[0]),
+    );
+
+    expect(result.current).toEqual([]);
+  });
+
+  it("handles unsubscribe invoke rejection on cleanup without crashing", () => {
+    const failConn = createMockConnection();
+    failConn.invoke.mockResolvedValueOnce(undefined);
+    failConn.invoke.mockRejectedValue(new Error("Connection lost"));
+
+    const { unmount } = renderHook(() =>
+      useLiveThroughput(failConn as unknown as Parameters<typeof useLiveThroughput>[0]),
+    );
+
+    expect(() => unmount()).not.toThrow();
+  });
 });
