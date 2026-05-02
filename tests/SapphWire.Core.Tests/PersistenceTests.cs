@@ -214,3 +214,4 @@ public class PersistenceTests : IAsyncLifetime
         result[0].TotalUp.Should().Be(200);
         result[1].TotalUp.Should().Be(400);
     }
+}
