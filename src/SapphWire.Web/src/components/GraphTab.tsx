@@ -52,7 +52,7 @@ export default function GraphTab({ connection }: Props) {
           if (!Array.isArray(params) || params.length === 0) return "";
           const time = new Date(params[0].axisValueLabel).toLocaleTimeString();
           const lines = params.map(
-            (p: { seriesName: string; value: number }) => `${p.seriesName}: ${formatRate(p.value)}`,
+            (p) => `${p.seriesName}: ${formatRate(p.value)}`,
           );
           return `${time}<br/>${lines.join("<br/>")}`;
         },

@@ -8,16 +8,13 @@ public class ThroughputPublisher : BackgroundService
 {
     private readonly FlowAggregator _aggregator;
     private readonly IHubContext<DashboardHub> _hub;
-    private readonly ILogger<ThroughputPublisher> _logger;
 
     public ThroughputPublisher(
         FlowAggregator aggregator,
-        IHubContext<DashboardHub> hub,
-        ILogger<ThroughputPublisher> logger)
+        IHubContext<DashboardHub> hub)
     {
         _aggregator = aggregator;
         _hub = hub;
-        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

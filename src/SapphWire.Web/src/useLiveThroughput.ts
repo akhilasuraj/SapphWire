@@ -31,8 +31,8 @@ export function useLiveThroughput(
 
     return () => {
       connection.invoke("UnsubscribeLiveThroughput");
-      connection.off("ThroughputSnapshot");
-      connection.off("ThroughputDelta");
+      connection.off("ThroughputSnapshot", onSnapshot);
+      connection.off("ThroughputDelta", onDelta);
       setData([]);
     };
   }, [connection]);

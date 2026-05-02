@@ -130,8 +130,8 @@ describe("useLiveThroughput", () => {
     unmount();
 
     expect(conn.invoke).toHaveBeenCalledWith("UnsubscribeLiveThroughput");
-    expect(conn.off).toHaveBeenCalledWith("ThroughputSnapshot");
-    expect(conn.off).toHaveBeenCalledWith("ThroughputDelta");
+    expect(conn.off).toHaveBeenCalledWith("ThroughputSnapshot", expect.any(Function));
+    expect(conn.off).toHaveBeenCalledWith("ThroughputDelta", expect.any(Function));
   });
 
   it("clears data and resubscribes when connection changes", () => {
