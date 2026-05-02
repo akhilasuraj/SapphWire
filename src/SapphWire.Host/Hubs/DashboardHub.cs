@@ -5,11 +5,11 @@ namespace SapphWire.Host.Hubs;
 
 public class DashboardHub : Hub
 {
-    private readonly FlowAggregator _aggregator;
+    private readonly IPersistence _persistence;
 
-    public DashboardHub(FlowAggregator aggregator)
+    public DashboardHub(IPersistence persistence)
     {
-        _aggregator = aggregator;
+        _persistence = persistence;
     }
 
     public async Task Ping()
@@ -20,7 +20,10 @@ public class DashboardHub : Hub
     public async Task SubscribeLiveThroughput()
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, "liveThroughput");
-        var snapshot = _aggregator.GetSnapshot();
+        var snapshot = await _persistence.GetSeriesAsync(
+            DateTimeOffset.UtcNow.AddSeconds(-300),
+            DateTimeOffset.UtcNow,
+            TimeSpan.FromSeconds(1));
         await Clients.Caller.SendAsync("ThroughputSnapshot", snapshot);
     }
 
