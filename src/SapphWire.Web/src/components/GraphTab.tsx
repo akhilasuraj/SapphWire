@@ -107,8 +107,9 @@ export default function GraphTab({ connection }: Props) {
     });
   }, [data]);
 
-  const latestUp = data.length > 0 ? data[data.length - 1].totalUp : 0;
-  const latestDown = data.length > 0 ? data[data.length - 1].totalDown : 0;
+  const latest = data.length > 0 ? data[data.length - 1] : undefined;
+  const latestUp = latest?.totalUp ?? 0;
+  const latestDown = latest?.totalDown ?? 0;
 
   return (
     <div className="flex-1 flex flex-col p-4 gap-4">

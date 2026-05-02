@@ -38,6 +38,7 @@ public class EtwNetworkCapture : INetworkCapture
         while (!ct.IsCancellationRequested)
         {
             TraceEventSession? session = null;
+            CancellationTokenRegistration ctr = default;
             try
             {
                 session = new TraceEventSession("SapphWire-NetworkCapture");
@@ -59,7 +60,7 @@ public class EtwNetworkCapture : INetworkCapture
                     Emit(data.TimeStamp, data.ProcessID, TrafficDirection.Down,
                         data.size, data.saddr.ToString(), data.sport, "UDP");
 
-                ct.Register(() => session.Stop());
+                ctr = ct.Register(() => session.Stop());
 
                 _logger.LogInformation("ETW capture session started");
                 backoffMs = 1000;
@@ -74,6 +75,7 @@ public class EtwNetworkCapture : INetworkCapture
             }
             finally
             {
+                ctr.Dispose();
                 session?.Dispose();
             }
         }
