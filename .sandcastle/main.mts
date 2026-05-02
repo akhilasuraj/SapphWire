@@ -100,15 +100,21 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
   // Phase 2: Execute + Review
   //
-  // For each issue, create a sandbox via createSandbox() so the implementer
-  // and reviewer share the same sandbox instance per branch. The implementer
-  // runs first; if it produces commits, the reviewer runs in the same sandbox.
+  // Issues are processed sequentially (one at a time) to keep AI token usage
+  // bounded — running implementers in parallel was burning through the quota
+  // before any single issue completed. For each issue, a sandbox is created
+  // via createSandbox() so the implementer and reviewer share the same sandbox
+  // instance per branch. The implementer runs first; if it produces commits,
+  // the reviewer runs in the same sandbox.
   //
-  // Promise.allSettled means one failing pipeline doesn't cancel the others.
+  // A try/catch around each issue ensures one failing pipeline doesn't stop
+  // the others.
   // -------------------------------------------------------------------------
 
-  const settled = await Promise.allSettled(
-    issues.map(async (issue) => {
+  const settled: PromiseSettledResult<{ commits: unknown[] }>[] = [];
+
+  for (const issue of issues) {
+    try {
       const sandbox = await sandcastle.createSandbox({
         branch: issue.branch,
         sandbox: docker(),
@@ -144,25 +150,24 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
 
           // Merge commits from both runs so the merge phase sees all of them.
           // Each sandbox.run() only returns commits from its own run.
-          return {
-            ...review,
-            commits: [...implement.commits, ...review.commits],
-          };
+          settled.push({
+            status: "fulfilled",
+            value: {
+              ...review,
+              commits: [...implement.commits, ...review.commits],
+            },
+          });
+        } else {
+          settled.push({ status: "fulfilled", value: implement });
         }
-
-        return implement;
       } finally {
         await sandbox.close();
       }
-    }),
-  );
-
-  // Log any agents that threw (network error, sandbox crash, etc.).
-  for (const [i, outcome] of settled.entries()) {
-    if (outcome.status === "rejected") {
+    } catch (reason) {
       console.error(
-        `  ✗ ${issues[i]!.id} (${issues[i]!.branch}) failed: ${outcome.reason}`,
+        `  ✗ ${issue.id} (${issue.branch}) failed: ${reason}`,
       );
+      settled.push({ status: "rejected", reason });
     }
   }
 
