@@ -32,6 +32,12 @@ import { docker } from "@ai-hero/sandcastle/sandboxes/docker";
 // Raise this if your backlog is large; lower it for a quick smoke-test run.
 const MAX_ITERATIONS = 10;
 
+// Maximum number of issues to merge in total across the whole run.
+// Set to 1 for a "do one issue and stop" smoke test — useful when you want to
+// preserve token quota or sanity-check the pipeline. Set to Infinity to drain
+// the whole backlog (subject to MAX_ITERATIONS).
+const MAX_MERGES = 1;
+
 // Hooks run inside the sandbox before the agent starts each iteration.
 // npm install ensures the sandbox always has fresh dependencies.
 const hooks = {
@@ -115,6 +121,7 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   // -------------------------------------------------------------------------
 
   let mergedCount = 0;
+  let stopAfterIteration = false;
 
   for (const issue of issues) {
     try {
@@ -186,6 +193,14 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
       });
       mergedCount++;
       console.log(`  ✓ ${issue.branch} merged.`);
+
+      if (mergedCount >= MAX_MERGES) {
+        console.log(
+          `\nReached MAX_MERGES (${MAX_MERGES}). Stopping early.`,
+        );
+        stopAfterIteration = true;
+        break;
+      }
     } catch (reason) {
       console.error(
         `  ✗ ${issue.id} (${issue.branch}) failed: ${reason}`,
@@ -194,6 +209,10 @@ for (let iteration = 1; iteration <= MAX_ITERATIONS; iteration++) {
   }
 
   console.log(`\nIteration ${iteration} complete. ${mergedCount} branch(es) merged.`);
+
+  if (stopAfterIteration) {
+    break;
+  }
 
   if (mergedCount === 0) {
     // Nothing got merged this cycle — re-planning won't help.
