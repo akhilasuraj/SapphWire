@@ -80,6 +80,10 @@ public class SqlitePersistence : IPersistence
                 friendly_name TEXT,
                 network_id    TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS blocked_parents (
+                app_id TEXT PRIMARY KEY
+            );
             """;
         await schemaCmd.ExecuteNonQueryAsync();
     }
@@ -351,6 +355,57 @@ public class SqlitePersistence : IPersistence
             }
 
             transaction.Commit();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task SaveBlockedParentAsync(string appId)
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "INSERT OR IGNORE INTO blocked_parents (app_id) VALUES (@id);";
+            cmd.Parameters.AddWithValue("@id", appId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task RemoveBlockedParentAsync(string appId)
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM blocked_parents WHERE app_id = @id;";
+            cmd.Parameters.AddWithValue("@id", appId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> GetBlockedParentsAsync()
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "SELECT app_id FROM blocked_parents;";
+            var results = new List<string>();
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                results.Add(reader.GetString(0));
+            return results;
         }
         finally
         {

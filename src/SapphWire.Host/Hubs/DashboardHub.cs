@@ -6,10 +6,12 @@ namespace SapphWire.Host.Hubs;
 public class DashboardHub : Hub
 {
     private readonly IPersistence _persistence;
+    private readonly IFirewall _firewall;
 
-    public DashboardHub(IPersistence persistence)
+    public DashboardHub(IPersistence persistence, IFirewall firewall)
     {
         _persistence = persistence;
+        _firewall = firewall;
     }
 
     public async Task Ping()
@@ -50,6 +52,18 @@ public class DashboardHub : Hub
     public async Task UnsubscribeConnections(string appId)
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"connections/{appId}");
+    }
+
+    public async Task SubscribeFirewall()
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, "firewall");
+        var state = _firewall.GetState();
+        await Clients.Caller.SendAsync("FirewallStateSnapshot", state);
+    }
+
+    public async Task UnsubscribeFirewall()
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, "firewall");
     }
 
     public async Task<IReadOnlyList<GraphSeriesPoint>> GetGraphSeries(

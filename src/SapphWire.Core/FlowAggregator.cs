@@ -77,6 +77,14 @@ public class FlowAggregator
         }
     }
 
+    public Dictionary<FlowKey, (long Up, long Down)> PeekPerFlow()
+    {
+        lock (_lock)
+        {
+            return new Dictionary<FlowKey, (long Up, long Down)>(_pendingByFlow);
+        }
+    }
+
     public IReadOnlyList<ThroughputBucket> GetSnapshot()
     {
         lock (_lock)

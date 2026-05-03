@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 import { useActiveApps, type ActiveAppRow } from "../useActiveApps";
 import { useConnections, type ConnectionDetail } from "../useConnections";
+import { useFirewall } from "../useFirewall";
 
 interface Props {
   connection: HubConnection | null;
@@ -19,6 +20,14 @@ function countryFlag(code: string): string {
     .split("")
     .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
     .join("");
+}
+
+function FlameIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+      <path d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" />
+    </svg>
+  );
 }
 
 function Sparkline({ appId, data }: { appId: string; data?: number[] }) {
@@ -51,14 +60,43 @@ function Sparkline({ appId, data }: { appId: string; data?: number[] }) {
   );
 }
 
-function ConnectionRow({ conn }: { conn: ConnectionDetail }) {
+function ConnectionRow({
+  conn,
+  parentAppId,
+  onBlockExe,
+  onUnblockExe,
+  isExeBlocked,
+}: {
+  conn: ConnectionDetail;
+  parentAppId: string;
+  onBlockExe: (appId: string, exeName: string) => void;
+  onUnblockExe: (appId: string, exeName: string) => void;
+  isExeBlocked: boolean;
+}) {
   return (
     <div className="flex items-center gap-3 py-1.5 px-2">
+      <button
+        data-testid={`child-flame-${conn.exeName}-${conn.pid}`}
+        onClick={() =>
+          isExeBlocked
+            ? onUnblockExe(parentAppId, conn.exeName)
+            : onBlockExe(parentAppId, conn.exeName)
+        }
+        className={`flex-shrink-0 transition-colors ${
+          isExeBlocked
+            ? "text-orange-400"
+            : "text-gray-600 hover:text-orange-400"
+        }`}
+      >
+        <FlameIcon />
+      </button>
       <div className="w-5 text-center text-xs">
         {conn.countryCode ? countryFlag(conn.countryCode) : null}
       </div>
       <div className="flex-1 min-w-0">
-        <span className="text-xs font-medium text-gray-300">{conn.exeName}</span>
+        <span className="text-xs font-medium text-gray-300">
+          {conn.exeName}
+        </span>
         <span className="text-xs text-gray-600 ml-2">PID {conn.pid}</span>
         <span className="text-xs text-gray-500 ml-2">
           {conn.remoteHost}:{conn.remotePort}
@@ -80,12 +118,22 @@ function AppRow({
   onToggle,
   sparkData,
   connections,
+  isBlocked,
+  onFlameClick,
+  onBlockExe,
+  onUnblockExe,
+  isExeBlocked,
 }: {
   app: ActiveAppRow;
   isExpanded: boolean;
   onToggle: () => void;
   sparkData?: number[];
   connections: ConnectionDetail[];
+  isBlocked: boolean;
+  onFlameClick: () => void;
+  onBlockExe: (appId: string, exeName: string) => void;
+  onUnblockExe: (appId: string, exeName: string) => void;
+  isExeBlocked: (appId: string, exeName: string) => boolean;
 }) {
   const moreCount = app.endpointCount - 1;
 
@@ -98,13 +146,18 @@ function AppRow({
       >
         <button
           data-testid={`flame-toggle-${app.appId}`}
-          onClick={(e) => e.stopPropagation()}
-          className="text-gray-600 hover:text-orange-400 transition-colors flex-shrink-0"
-          title="Block/Unblock (coming soon)"
+          onClick={(e) => {
+            e.stopPropagation();
+            onFlameClick();
+          }}
+          className={`transition-colors flex-shrink-0 ${
+            isBlocked
+              ? "text-orange-400 hover:text-orange-300"
+              : "text-gray-600 hover:text-orange-400"
+          }`}
+          title={isBlocked ? "Unblock" : "Block"}
         >
-          <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" />
-          </svg>
+          <FlameIcon />
         </button>
 
         <div className="flex-shrink-0 w-6 text-center">
@@ -162,7 +215,14 @@ function AppRow({
             <p className="text-xs text-gray-500">No active connections</p>
           ) : (
             connections.map((conn, i) => (
-              <ConnectionRow key={`${conn.exeName}-${conn.pid}-${conn.remoteHost}-${conn.remotePort}-${i}`} conn={conn} />
+              <ConnectionRow
+                key={`${conn.exeName}-${conn.pid}-${conn.remoteHost}-${conn.remotePort}-${i}`}
+                conn={conn}
+                parentAppId={app.appId}
+                onBlockExe={onBlockExe}
+                onUnblockExe={onUnblockExe}
+                isExeBlocked={isExeBlocked(app.appId, conn.exeName)}
+              />
             ))
           )}
         </div>
@@ -171,21 +231,47 @@ function AppRow({
   );
 }
 
+function BlockedAppRow({
+  entry,
+  onUnblock,
+}: {
+  entry: { appId: string; displayName: string };
+  onUnblock: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-800/50">
+      <button
+        data-testid={`flame-toggle-${entry.appId}`}
+        onClick={onUnblock}
+        className="text-orange-400 hover:text-orange-300 transition-colors flex-shrink-0"
+        title="Unblock"
+      >
+        <FlameIcon />
+      </button>
+      <span className="text-sm font-medium text-gray-200">
+        {entry.displayName}
+      </span>
+    </div>
+  );
+}
+
 function CollapsibleSection({
   title,
   defaultOpen = true,
   count,
+  testId,
   children,
 }: {
   title: string;
   defaultOpen?: boolean;
   count?: number;
+  testId?: string;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="mb-2">
+    <div className="mb-2" data-testid={testId}>
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 w-full px-4 py-2 text-left hover:bg-gray-800/30"
@@ -215,24 +301,100 @@ function CollapsibleSection({
 
 export default function FirewallTab({ connection }: Props) {
   const { apps, sparkHistory } = useActiveApps(connection);
+  const {
+    state: firewallState,
+    blockApp,
+    unblockApp,
+    blockExe,
+    unblockExe,
+    isBlocked,
+    isExeBlocked,
+  } = useFirewall(connection);
   const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
   const connections = useConnections(connection, expandedAppId);
 
+  const blockedApps = apps.filter((a) => isBlocked(a.appId));
+  const activeApps = apps.filter((a) => !isBlocked(a.appId));
+
+  const blockedOnlyFromState = firewallState.blockedApps.filter(
+    (b) => !apps.some((a) => a.appId === b.appId),
+  );
+
+  const totalBlockedCount = blockedApps.length + blockedOnlyFromState.length;
+
   return (
     <div className="flex-1 flex flex-col p-4">
-      <CollapsibleSection title="Blocked Apps" count={0}>
-        <div className="px-4 py-6 text-center text-sm text-gray-600">
-          No blocked apps
+      {firewallState.error && (
+        <div
+          data-testid="firewall-error-banner"
+          className="mb-4 px-4 py-3 bg-red-900/50 border border-red-700 rounded-lg text-sm text-red-200"
+        >
+          {firewallState.error}
         </div>
+      )}
+
+      <div className="flex items-center justify-end mb-2 px-4">
+        <label
+          data-testid="show-installed-apps-toggle"
+          className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer"
+        >
+          <input type="checkbox" className="rounded" />
+          Show all installed apps
+        </label>
+      </div>
+
+      <CollapsibleSection
+        title="Blocked Apps"
+        count={totalBlockedCount}
+        testId="blocked-apps-section"
+      >
+        {totalBlockedCount === 0 ? (
+          <div className="px-4 py-6 text-center text-sm text-gray-600">
+            No blocked apps
+          </div>
+        ) : (
+          <>
+            {blockedApps.map((app) => (
+              <AppRow
+                key={app.appId}
+                app={app}
+                isExpanded={expandedAppId === app.appId}
+                onToggle={() =>
+                  setExpandedAppId(
+                    expandedAppId === app.appId ? null : app.appId,
+                  )
+                }
+                sparkData={sparkHistory[app.appId]}
+                connections={expandedAppId === app.appId ? connections : []}
+                isBlocked={true}
+                onFlameClick={() => unblockApp(app.appId)}
+                onBlockExe={blockExe}
+                onUnblockExe={unblockExe}
+                isExeBlocked={isExeBlocked}
+              />
+            ))}
+            {blockedOnlyFromState.map((entry) => (
+              <BlockedAppRow
+                key={entry.appId}
+                entry={entry}
+                onUnblock={() => unblockApp(entry.appId)}
+              />
+            ))}
+          </>
+        )}
       </CollapsibleSection>
 
-      <CollapsibleSection title="Active Apps" count={apps.length}>
-        {apps.length === 0 ? (
+      <CollapsibleSection
+        title="Active Apps"
+        count={activeApps.length}
+        testId="active-apps-section"
+      >
+        {activeApps.length === 0 ? (
           <div className="px-4 py-6 text-center text-sm text-gray-600">
             No active apps detected
           </div>
         ) : (
-          apps.map((app) => (
+          activeApps.map((app) => (
             <AppRow
               key={app.appId}
               app={app}
@@ -244,6 +406,11 @@ export default function FirewallTab({ connection }: Props) {
               }
               sparkData={sparkHistory[app.appId]}
               connections={expandedAppId === app.appId ? connections : []}
+              isBlocked={false}
+              onFlameClick={() => blockApp(app.appId)}
+              onBlockExe={blockExe}
+              onUnblockExe={unblockExe}
+              isExeBlocked={isExeBlocked}
             />
           ))
         )}

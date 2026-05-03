@@ -13,8 +13,11 @@ public class ThroughputPublisher : BackgroundService
     private readonly IProcessResolver _processResolver;
     private readonly IDnsResolver _dnsResolver;
     private readonly IGeoIp _geoIp;
+    private readonly IFirewall _firewall;
 
     private readonly ConcurrentDictionary<string, LinkedList<long>> _sparkBuffers = new();
+    private readonly HashSet<string> _knownExePaths = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string>? _blockedParents;
     private const int SparkMaxPoints = 60;
 
     public ThroughputPublisher(
@@ -23,7 +26,8 @@ public class ThroughputPublisher : BackgroundService
         IPersistence persistence,
         IProcessResolver processResolver,
         IDnsResolver dnsResolver,
-        IGeoIp geoIp)
+        IGeoIp geoIp,
+        IFirewall firewall)
     {
         _aggregator = aggregator;
         _hub = hub;
@@ -31,6 +35,7 @@ public class ThroughputPublisher : BackgroundService
         _processResolver = processResolver;
         _dnsResolver = dnsResolver;
         _geoIp = geoIp;
+        _firewall = firewall;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -81,6 +86,15 @@ public class ThroughputPublisher : BackgroundService
                         await _hub.Clients.Group($"connections/{appId}")
                             .SendAsync("ConnectionsDelta", connections, stoppingToken);
                     }
+                }
+                catch
+                {
+                    // Best-effort
+                }
+
+                try
+                {
+                    await AutoBlockNewChildren(perFlow, stoppingToken);
                 }
                 catch
                 {
@@ -168,5 +182,49 @@ public class ThroughputPublisher : BackgroundService
 
         activeApps.Sort((a, b) => (b.Up + b.Down).CompareTo(a.Up + a.Down));
         return (activeApps, connectionsByApp);
+    }
+
+    private async Task AutoBlockNewChildren(
+        Dictionary<FlowKey, (long Up, long Down)> perFlow, CancellationToken ct)
+    {
+        _blockedParents ??= new HashSet<string>(
+            await _persistence.GetBlockedParentsAsync(), StringComparer.OrdinalIgnoreCase);
+
+        if (_blockedParents.Count == 0) return;
+
+        var newExesByApp = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var flowKey in perFlow.Keys)
+        {
+            var info = _processResolver.Resolve(flowKey.Pid);
+            if (string.IsNullOrEmpty(info.ExePath)) continue;
+
+            if (!_knownExePaths.Add(info.ExePath)) continue;
+
+            var appKey = AppGrouper.GetAppKey(info);
+            if (!_blockedParents.Contains(appKey)) continue;
+
+            if (!newExesByApp.TryGetValue(appKey, out var list))
+            {
+                list = new List<string>();
+                newExesByApp[appKey] = list;
+            }
+            list.Add(info.ExePath);
+        }
+
+        foreach (var (appKey, exePaths) in newExesByApp)
+        {
+            foreach (var exePath in exePaths)
+                _firewall.BlockExe(appKey, exePath);
+
+            var state = _firewall.GetState();
+            await _hub.Clients.Group("firewall")
+                .SendAsync("FirewallStateChanged", state, ct);
+        }
+    }
+
+    internal void NotifyBlockedParentsChanged()
+    {
+        _blockedParents = null;
     }
 }
