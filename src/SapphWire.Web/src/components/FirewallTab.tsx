@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 import { useActiveApps, type ActiveAppRow } from "../useActiveApps";
+import { useConnections, type ConnectionDetail } from "../useConnections";
 
 interface Props {
   connection: HubConnection | null;
@@ -20,7 +21,20 @@ function countryFlag(code: string): string {
     .join("");
 }
 
-function Sparkline({ appId }: { appId: string }) {
+function Sparkline({ appId, data }: { appId: string; data?: number[] }) {
+  let points: string;
+  if (data && data.length > 0) {
+    const max = Math.max(...data, 1);
+    const h = 18;
+    const w = 60;
+    const step = data.length > 1 ? w / (data.length - 1) : 0;
+    points = data
+      .map((v, i) => `${i * step},${h - (v / max) * h + 1}`)
+      .join(" ");
+  } else {
+    points = "0,10 30,10 60,10";
+  }
+
   return (
     <svg
       data-testid={`sparkline-${appId}`}
@@ -28,7 +42,7 @@ function Sparkline({ appId }: { appId: string }) {
       viewBox="0 0 60 20"
     >
       <polyline
-        points="0,10 30,10 60,10"
+        points={points}
         fill="none"
         stroke="#3b82f6"
         strokeWidth="1.5"
@@ -37,14 +51,41 @@ function Sparkline({ appId }: { appId: string }) {
   );
 }
 
+function ConnectionRow({ conn }: { conn: ConnectionDetail }) {
+  return (
+    <div className="flex items-center gap-3 py-1.5 px-2">
+      <div className="w-5 text-center text-xs">
+        {conn.countryCode ? countryFlag(conn.countryCode) : null}
+      </div>
+      <div className="flex-1 min-w-0">
+        <span className="text-xs font-medium text-gray-300">{conn.exeName}</span>
+        <span className="text-xs text-gray-600 ml-2">PID {conn.pid}</span>
+        <span className="text-xs text-gray-500 ml-2">
+          {conn.remoteHost}:{conn.remotePort}
+        </span>
+      </div>
+      <span className="text-xs text-green-400 w-16 text-right">
+        {"↑"} {formatRate(conn.up)}
+      </span>
+      <span className="text-xs text-blue-400 w-16 text-right">
+        {"↓"} {formatRate(conn.down)}
+      </span>
+    </div>
+  );
+}
+
 function AppRow({
   app,
   isExpanded,
   onToggle,
+  sparkData,
+  connections,
 }: {
   app: ActiveAppRow;
   isExpanded: boolean;
   onToggle: () => void;
+  sparkData?: number[];
+  connections: ConnectionDetail[];
 }) {
   const moreCount = app.endpointCount - 1;
 
@@ -89,15 +130,15 @@ function AppRow({
             data-testid={`rate-up-${app.appId}`}
             className="text-xs text-green-400 w-20 text-right"
           >
-            ↑ {formatRate(app.up)}
+            {"↑"} {formatRate(app.up)}
           </span>
           <span
             data-testid={`rate-down-${app.appId}`}
             className="text-xs text-blue-400 w-20 text-right"
           >
-            ↓ {formatRate(app.down)}
+            {"↓"} {formatRate(app.down)}
           </span>
-          <Sparkline appId={app.appId} />
+          <Sparkline appId={app.appId} data={sparkData} />
           <svg
             className={`w-4 h-4 text-gray-500 transition-transform ${isExpanded ? "rotate-180" : ""}`}
             viewBox="0 0 20 20"
@@ -117,10 +158,13 @@ function AppRow({
           data-testid={`expanded-${app.appId}`}
           className="bg-gray-900/50 border-b border-gray-800/50 px-8 py-3"
         >
-          <p className="text-xs text-gray-500">
-            Child processes and per-endpoint detail will appear here when
-            connected.
-          </p>
+          {connections.length === 0 ? (
+            <p className="text-xs text-gray-500">No active connections</p>
+          ) : (
+            connections.map((conn, i) => (
+              <ConnectionRow key={`${conn.exeName}-${conn.pid}-${conn.remoteHost}-${conn.remotePort}-${i}`} conn={conn} />
+            ))
+          )}
         </div>
       )}
     </>
@@ -170,8 +214,9 @@ function CollapsibleSection({
 }
 
 export default function FirewallTab({ connection }: Props) {
-  const apps = useActiveApps(connection);
+  const { apps, sparkHistory } = useActiveApps(connection);
   const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
+  const connections = useConnections(connection, expandedAppId);
 
   return (
     <div className="flex-1 flex flex-col p-4">
@@ -197,6 +242,8 @@ export default function FirewallTab({ connection }: Props) {
                   expandedAppId === app.appId ? null : app.appId,
                 )
               }
+              sparkData={sparkHistory[app.appId]}
+              connections={expandedAppId === app.appId ? connections : []}
             />
           ))
         )}

@@ -2,6 +2,21 @@ import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useActiveApps, type ActiveAppRow } from "./useActiveApps";
 
+function makeDelta(overrides: Partial<ActiveAppRow> = {}): ActiveAppRow {
+  return {
+    appId: "App",
+    displayName: "App",
+    iconUrl: "",
+    up: 0,
+    down: 0,
+    sparkPoint: 0,
+    topEndpoint: "0.0.0.0:0",
+    endpointCount: 1,
+    countryCode: null,
+    ...overrides,
+  };
+}
+
 function createMockConnection() {
   const handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
   return {
@@ -30,7 +45,7 @@ describe("useActiveApps", () => {
 
   it("returns empty array when connection is null", () => {
     const { result } = renderHook(() => useActiveApps(null));
-    expect(result.current).toEqual([]);
+    expect(result.current.apps).toEqual([]);
   });
 
   it("subscribes to activeApps on mount", () => {
@@ -100,7 +115,7 @@ describe("useActiveApps", () => {
       mockConn._emit("ActiveAppsSnapshot", snapshot);
     });
 
-    expect(result.current).toEqual(snapshot);
+    expect(result.current.apps).toEqual(snapshot);
   });
 
   it("replaces state on each ActiveAppsDelta", () => {
@@ -125,8 +140,8 @@ describe("useActiveApps", () => {
     act(() => {
       mockConn._emit("ActiveAppsDelta", delta1);
     });
-    expect(result.current).toHaveLength(1);
-    expect(result.current[0].appId).toBe("Chrome");
+    expect(result.current.apps).toHaveLength(1);
+    expect(result.current.apps[0].appId).toBe("Chrome");
 
     const delta2: ActiveAppRow[] = [
       {
@@ -145,8 +160,8 @@ describe("useActiveApps", () => {
     act(() => {
       mockConn._emit("ActiveAppsDelta", delta2);
     });
-    expect(result.current).toHaveLength(1);
-    expect(result.current[0].appId).toBe("Discord");
+    expect(result.current.apps).toHaveLength(1);
+    expect(result.current.apps[0].appId).toBe("Discord");
   });
 
   it("clears data on unmount", () => {
@@ -169,7 +184,7 @@ describe("useActiveApps", () => {
         },
       ]);
     });
-    expect(result.current).toHaveLength(1);
+    expect(result.current.apps).toHaveLength(1);
 
     unmount();
   });
@@ -181,6 +196,90 @@ describe("useActiveApps", () => {
       useActiveApps(mockConn as unknown as Parameters<typeof useActiveApps>[0]),
     );
 
-    expect(result.current).toEqual([]);
+    expect(result.current.apps).toEqual([]);
+  });
+
+  it("accumulates sparkHistory from successive deltas", () => {
+    const { result } = renderHook(() =>
+      useActiveApps(mockConn as unknown as Parameters<typeof useActiveApps>[0]),
+    );
+
+    act(() => {
+      mockConn._emit("ActiveAppsDelta", [
+        makeDelta({ appId: "Chrome", sparkPoint: 100 }),
+      ]);
+    });
+    act(() => {
+      mockConn._emit("ActiveAppsDelta", [
+        makeDelta({ appId: "Chrome", sparkPoint: 200 }),
+      ]);
+    });
+    act(() => {
+      mockConn._emit("ActiveAppsDelta", [
+        makeDelta({ appId: "Chrome", sparkPoint: 150 }),
+      ]);
+    });
+
+    expect(result.current.sparkHistory["Chrome"]).toEqual([100, 200, 150]);
+  });
+
+  it("caps sparkHistory at 60 points per app", () => {
+    const { result } = renderHook(() =>
+      useActiveApps(mockConn as unknown as Parameters<typeof useActiveApps>[0]),
+    );
+
+    for (let i = 0; i < 70; i++) {
+      act(() => {
+        mockConn._emit("ActiveAppsDelta", [
+          makeDelta({ appId: "Chrome", sparkPoint: i }),
+        ]);
+      });
+    }
+
+    expect(result.current.sparkHistory["Chrome"]).toHaveLength(60);
+    expect(result.current.sparkHistory["Chrome"][0]).toBe(10);
+    expect(result.current.sparkHistory["Chrome"][59]).toBe(69);
+  });
+
+  it("tracks sparkHistory separately per app", () => {
+    const { result } = renderHook(() =>
+      useActiveApps(mockConn as unknown as Parameters<typeof useActiveApps>[0]),
+    );
+
+    act(() => {
+      mockConn._emit("ActiveAppsDelta", [
+        makeDelta({ appId: "Chrome", sparkPoint: 100 }),
+        makeDelta({ appId: "Discord", sparkPoint: 50 }),
+      ]);
+    });
+    act(() => {
+      mockConn._emit("ActiveAppsDelta", [
+        makeDelta({ appId: "Chrome", sparkPoint: 200 }),
+      ]);
+    });
+
+    expect(result.current.sparkHistory["Chrome"]).toEqual([100, 200]);
+    expect(result.current.sparkHistory["Discord"]).toEqual([50]);
+  });
+
+  it("resets sparkHistory on snapshot", () => {
+    const { result } = renderHook(() =>
+      useActiveApps(mockConn as unknown as Parameters<typeof useActiveApps>[0]),
+    );
+
+    act(() => {
+      mockConn._emit("ActiveAppsDelta", [
+        makeDelta({ appId: "Chrome", sparkPoint: 100 }),
+      ]);
+    });
+    expect(result.current.sparkHistory["Chrome"]).toEqual([100]);
+
+    act(() => {
+      mockConn._emit("ActiveAppsSnapshot", [
+        makeDelta({ appId: "Chrome", sparkPoint: 999 }),
+      ]);
+    });
+
+    expect(result.current.sparkHistory["Chrome"]).toEqual([999]);
   });
 });
