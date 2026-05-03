@@ -7,6 +7,7 @@ public class FlowAggregator
     private readonly int _maxBuckets;
     private long _pendingUp;
     private long _pendingDown;
+    private readonly Dictionary<int, (long Up, long Down)> _pendingByPid = new();
 
     public FlowAggregator(int maxBuckets = 300)
     {
@@ -21,6 +22,12 @@ public class FlowAggregator
                 _pendingUp += evt.Bytes;
             else
                 _pendingDown += evt.Bytes;
+
+            _pendingByPid.TryGetValue(evt.ProcessId, out var current);
+            if (evt.Direction == TrafficDirection.Up)
+                _pendingByPid[evt.ProcessId] = (current.Up + evt.Bytes, current.Down);
+            else
+                _pendingByPid[evt.ProcessId] = (current.Up, current.Down + evt.Bytes);
         }
     }
 
@@ -37,6 +44,16 @@ public class FlowAggregator
                 _buckets.RemoveFirst();
 
             return bucket;
+        }
+    }
+
+    public Dictionary<int, (long Up, long Down)> DrainPerPid()
+    {
+        lock (_lock)
+        {
+            var snapshot = new Dictionary<int, (long Up, long Down)>(_pendingByPid);
+            _pendingByPid.Clear();
+            return snapshot;
         }
     }
 

@@ -214,4 +214,119 @@ public class PersistenceTests : IAsyncLifetime
         result[0].TotalUp.Should().Be(200);
         result[1].TotalUp.Should().Be(400);
     }
+
+    [Fact]
+    public async Task WriteGroupedBuckets_AndGetGroupedSeries_ByApp()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+        var grouped = new[]
+        {
+            new GroupedThroughputBucket(t0, "Chrome", "Google LLC", 500, 1000),
+            new GroupedThroughputBucket(t0, "Discord", "Discord Inc", 200, 300),
+            new GroupedThroughputBucket(t0.AddSeconds(1), "Chrome", "Google LLC", 600, 900),
+        };
+
+        await _persistence.WriteGroupedBucketsAsync(grouped);
+
+        var result = await _persistence.GetGroupedSeriesAsync(
+            t0.AddSeconds(-1), t0.AddSeconds(2), TimeSpan.FromSeconds(1), GroupBy.App);
+
+        result.Should().HaveCount(2);
+        result[0].Values["Chrome"].Should().Be(1500);
+        result[0].Values["Discord"].Should().Be(500);
+        result[1].Values["Chrome"].Should().Be(1500);
+    }
+
+    [Fact]
+    public async Task GetGroupedSeries_ByPublisher_GroupsByPublisher()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+        var grouped = new[]
+        {
+            new GroupedThroughputBucket(t0, "Chrome", "Google LLC", 500, 500),
+            new GroupedThroughputBucket(t0, "YouTube", "Google LLC", 300, 300),
+            new GroupedThroughputBucket(t0, "Discord", "Discord Inc", 200, 200),
+        };
+
+        await _persistence.WriteGroupedBucketsAsync(grouped);
+
+        var result = await _persistence.GetGroupedSeriesAsync(
+            t0.AddSeconds(-1), t0.AddSeconds(1), TimeSpan.FromSeconds(1), GroupBy.Publisher);
+
+        result.Should().ContainSingle();
+        result[0].Values["Google LLC"].Should().Be(1600);
+        result[0].Values["Discord Inc"].Should().Be(400);
+    }
+
+    [Fact]
+    public async Task GetGroupedSeries_None_MergesToTotal()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+        await _persistence.WriteBucketsAsync(new[]
+        {
+            new ThroughputBucket(t0, 100, 200),
+        });
+
+        var result = await _persistence.GetGroupedSeriesAsync(
+            t0.AddSeconds(-1), t0.AddSeconds(1), TimeSpan.FromSeconds(1), GroupBy.None);
+
+        result.Should().ContainSingle();
+        result[0].Values["Total"].Should().Be(300);
+    }
+
+    [Fact]
+    public async Task GetGroupedSeries_Top5PlusOther()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+        var grouped = new[]
+        {
+            new GroupedThroughputBucket(t0, "App1", "", 600, 0),
+            new GroupedThroughputBucket(t0, "App2", "", 500, 0),
+            new GroupedThroughputBucket(t0, "App3", "", 400, 0),
+            new GroupedThroughputBucket(t0, "App4", "", 300, 0),
+            new GroupedThroughputBucket(t0, "App5", "", 200, 0),
+            new GroupedThroughputBucket(t0, "App6", "", 100, 0),
+            new GroupedThroughputBucket(t0, "App7", "", 50, 0),
+        };
+
+        await _persistence.WriteGroupedBucketsAsync(grouped);
+
+        var result = await _persistence.GetGroupedSeriesAsync(
+            t0.AddSeconds(-1), t0.AddSeconds(1), TimeSpan.FromSeconds(1), GroupBy.App);
+
+        result.Should().ContainSingle();
+        var values = result[0].Values;
+        values.Should().ContainKey("App1");
+        values.Should().ContainKey("App2");
+        values.Should().ContainKey("App3");
+        values.Should().ContainKey("App4");
+        values.Should().ContainKey("App5");
+        values.Should().ContainKey("Other");
+        values.Should().NotContainKey("App6");
+        values.Should().NotContainKey("App7");
+        values["Other"].Should().Be(150);
+    }
+
+    [Fact]
+    public async Task Rollup_GroupedData_AggregatesIntoHourly()
+    {
+        var hourStart = Ts(2024, 1, 1, 10, 0, 0);
+        var grouped = new[]
+        {
+            new GroupedThroughputBucket(hourStart, "Chrome", "Google LLC", 100, 200),
+            new GroupedThroughputBucket(hourStart.AddSeconds(30), "Chrome", "Google LLC", 150, 250),
+        };
+
+        await _persistence.WriteGroupedBucketsAsync(grouped);
+        await _persistence.RunRollupAsync(hourStart.AddHours(25));
+
+        var oneSecRows = await _persistence.GetGroupedSeriesAsync(
+            hourStart.AddSeconds(-1), hourStart.AddHours(1), TimeSpan.FromSeconds(1), GroupBy.App);
+        oneSecRows.Should().BeEmpty();
+
+        var oneHourRows = await _persistence.GetGroupedSeriesAsync(
+            hourStart.AddHours(-1), hourStart.AddHours(1), TimeSpan.FromHours(1), GroupBy.App);
+        oneHourRows.Should().ContainSingle();
+        oneHourRows[0].Values["Chrome"].Should().Be(700);
+    }
 }

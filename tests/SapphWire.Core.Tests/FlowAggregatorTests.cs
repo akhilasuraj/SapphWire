@@ -168,4 +168,49 @@ public class FlowAggregatorTests
         snap1.Should().HaveCount(1);
         snap2.Should().HaveCount(2);
     }
+
+    [Fact]
+    public void DrainPerPid_ReturnsPerProcessBytes()
+    {
+        var agg = new FlowAggregator();
+
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 100, TrafficDirection.Up, 500, "10.0.0.1", 443, "TCP"));
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 100, TrafficDirection.Down, 1000, "10.0.0.1", 443, "TCP"));
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 200, TrafficDirection.Up, 200, "10.0.0.2", 80, "TCP"));
+
+        var perPid = agg.DrainPerPid();
+
+        perPid.Should().HaveCount(2);
+        perPid[100].Up.Should().Be(500);
+        perPid[100].Down.Should().Be(1000);
+        perPid[200].Up.Should().Be(200);
+        perPid[200].Down.Should().Be(0);
+    }
+
+    [Fact]
+    public void DrainPerPid_ClearsAfterDrain()
+    {
+        var agg = new FlowAggregator();
+
+        agg.Ingest(MakeEvent(TrafficDirection.Up, 100));
+
+        var first = agg.DrainPerPid();
+        first.Should().HaveCount(1);
+
+        var second = agg.DrainPerPid();
+        second.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DrainPerPid_IndependentOfTick()
+    {
+        var agg = new FlowAggregator();
+
+        agg.Ingest(MakeEvent(TrafficDirection.Up, 100));
+        agg.Tick(DateTimeOffset.UtcNow);
+
+        var perPid = agg.DrainPerPid();
+        perPid.Should().HaveCount(1);
+        perPid[1].Up.Should().Be(100);
+    }
 }

@@ -32,6 +32,22 @@ public class DashboardHub : Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, "liveThroughput");
     }
 
+    public async Task<IReadOnlyList<GraphSeriesPoint>> GetGraphSeries(
+        string fromIso, string toIso, int bucketSeconds, string groupByStr)
+    {
+        var from = DateTimeOffset.Parse(fromIso);
+        var to = DateTimeOffset.Parse(toIso);
+        var bucketSize = TimeSpan.FromSeconds(bucketSeconds);
+        var groupBy = groupByStr switch
+        {
+            "App" => GroupBy.App,
+            "Publisher" => GroupBy.Publisher,
+            _ => GroupBy.None,
+        };
+
+        return await _persistence.GetGroupedSeriesAsync(from, to, bucketSize, groupBy);
+    }
+
     public override async Task OnConnectedAsync()
     {
         await Clients.Caller.SendAsync("Pong");
