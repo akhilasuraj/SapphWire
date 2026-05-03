@@ -4,8 +4,6 @@ using SapphWire.Host.Hubs;
 using SapphWire.Host.Services;
 using SapphWire.Host.Tray;
 
-record FirewallBlockRequest(string AppId, string? ExePath = null);
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.WebHost.UseUrls(HostInfo.BaseUrl);
@@ -125,3 +123,5 @@ app.Lifetime.ApplicationStarted.Register(() =>
 });
 
 await app.RunAsync();
+
+record FirewallBlockRequest(string AppId, string? ExePath = null);

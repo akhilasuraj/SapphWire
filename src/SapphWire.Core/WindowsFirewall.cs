@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 
 namespace SapphWire.Core;
@@ -154,7 +153,7 @@ public class WindowsFirewall : IFirewall
             Type.GetTypeFromProgID("HNetCfg.FWRule")!)!;
 
         rule.Name = ruleName;
-        rule.Description = $"Blocked by SapphWire";
+        rule.Description = "Blocked by SapphWire";
         rule.ApplicationName = exePath;
         rule.Action = 0; // NET_FW_ACTION_BLOCK
         rule.Direction = direction;

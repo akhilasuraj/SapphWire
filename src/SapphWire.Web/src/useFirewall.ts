@@ -70,47 +70,39 @@ export function useFirewall(
     };
   }, [connection, onStateUpdate]);
 
-  const blockApp = useCallback(async (appId: string) => {
-    const result = await postFirewall("/api/firewall/block", { appId });
-    if (!result.ok) {
-      setError(`Firewall operation failed: ${result.errorText}`);
-    } else {
-      setError(null);
-    }
-  }, []);
+  const callFirewall = useCallback(
+    async (endpoint: string, body: { appId: string; exePath?: string }) => {
+      const result = await postFirewall(endpoint, body);
+      if (!result.ok) {
+        setError(`Firewall operation failed: ${result.errorText}`);
+      } else {
+        setError(null);
+      }
+    },
+    [],
+  );
 
-  const unblockApp = useCallback(async (appId: string) => {
-    const result = await postFirewall("/api/firewall/unblock", { appId });
-    if (!result.ok) {
-      setError(`Firewall operation failed: ${result.errorText}`);
-    } else {
-      setError(null);
-    }
-  }, []);
+  const blockApp = useCallback(
+    (appId: string) => callFirewall("/api/firewall/block", { appId }),
+    [callFirewall],
+  );
 
-  const blockExe = useCallback(async (appId: string, exePath: string) => {
-    const result = await postFirewall("/api/firewall/block", {
-      appId,
-      exePath,
-    });
-    if (!result.ok) {
-      setError(`Firewall operation failed: ${result.errorText}`);
-    } else {
-      setError(null);
-    }
-  }, []);
+  const unblockApp = useCallback(
+    (appId: string) => callFirewall("/api/firewall/unblock", { appId }),
+    [callFirewall],
+  );
 
-  const unblockExe = useCallback(async (appId: string, exePath: string) => {
-    const result = await postFirewall("/api/firewall/unblock", {
-      appId,
-      exePath,
-    });
-    if (!result.ok) {
-      setError(`Firewall operation failed: ${result.errorText}`);
-    } else {
-      setError(null);
-    }
-  }, []);
+  const blockExe = useCallback(
+    (appId: string, exePath: string) =>
+      callFirewall("/api/firewall/block", { appId, exePath }),
+    [callFirewall],
+  );
+
+  const unblockExe = useCallback(
+    (appId: string, exePath: string) =>
+      callFirewall("/api/firewall/unblock", { appId, exePath }),
+    [callFirewall],
+  );
 
   const isBlocked = useCallback(
     (appId: string) => blockedApps.some((a) => a.appId === appId),
