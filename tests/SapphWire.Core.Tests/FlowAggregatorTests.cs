@@ -213,4 +213,71 @@ public class FlowAggregatorTests
         perPid.Should().HaveCount(1);
         perPid[1].Up.Should().Be(100);
     }
+
+    [Fact]
+    public void DrainPerFlow_ReturnsPerFlowBytes()
+    {
+        var agg = new FlowAggregator();
+
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 100, TrafficDirection.Up, 500, "10.0.0.1", 443, "TCP"));
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 100, TrafficDirection.Down, 1000, "10.0.0.1", 443, "TCP"));
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 100, TrafficDirection.Up, 200, "10.0.0.2", 80, "TCP"));
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 200, TrafficDirection.Up, 300, "10.0.0.1", 443, "TCP"));
+
+        var perFlow = agg.DrainPerFlow();
+
+        perFlow.Should().HaveCount(3);
+        perFlow[new FlowKey(100, "10.0.0.1", 443)].Up.Should().Be(500);
+        perFlow[new FlowKey(100, "10.0.0.1", 443)].Down.Should().Be(1000);
+        perFlow[new FlowKey(100, "10.0.0.2", 80)].Up.Should().Be(200);
+        perFlow[new FlowKey(100, "10.0.0.2", 80)].Down.Should().Be(0);
+        perFlow[new FlowKey(200, "10.0.0.1", 443)].Up.Should().Be(300);
+        perFlow[new FlowKey(200, "10.0.0.1", 443)].Down.Should().Be(0);
+    }
+
+    [Fact]
+    public void DrainPerFlow_ClearsAfterDrain()
+    {
+        var agg = new FlowAggregator();
+
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 1, TrafficDirection.Up, 100, "10.0.0.1", 443, "TCP"));
+
+        var first = agg.DrainPerFlow();
+        first.Should().HaveCount(1);
+
+        var second = agg.DrainPerFlow();
+        second.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DrainPerFlow_IndependentOfDrainPerPid()
+    {
+        var agg = new FlowAggregator();
+
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 1, TrafficDirection.Up, 100, "10.0.0.1", 443, "TCP"));
+
+        var perPid = agg.DrainPerPid();
+        perPid.Should().HaveCount(1);
+
+        var perFlow = agg.DrainPerFlow();
+        perFlow.Should().HaveCount(1);
+        perFlow[new FlowKey(1, "10.0.0.1", 443)].Up.Should().Be(100);
+    }
+
+    [Fact]
+    public void DrainPerFlow_SamePidDifferentEndpoints_TrackedSeparately()
+    {
+        var agg = new FlowAggregator();
+
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 1, TrafficDirection.Up, 100, "10.0.0.1", 443, "TCP"));
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 1, TrafficDirection.Up, 200, "10.0.0.1", 80, "TCP"));
+        agg.Ingest(new NetworkEvent(DateTimeOffset.UtcNow, 1, TrafficDirection.Up, 300, "10.0.0.2", 443, "TCP"));
+
+        var perFlow = agg.DrainPerFlow();
+
+        perFlow.Should().HaveCount(3);
+        perFlow[new FlowKey(1, "10.0.0.1", 443)].Up.Should().Be(100);
+        perFlow[new FlowKey(1, "10.0.0.1", 80)].Up.Should().Be(200);
+        perFlow[new FlowKey(1, "10.0.0.2", 443)].Up.Should().Be(300);
+    }
 }

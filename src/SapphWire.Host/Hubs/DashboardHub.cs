@@ -32,6 +32,26 @@ public class DashboardHub : Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, "liveThroughput");
     }
 
+    public async Task SubscribeActiveApps()
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, "activeApps");
+    }
+
+    public async Task UnsubscribeActiveApps()
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, "activeApps");
+    }
+
+    public async Task SubscribeConnections(string appId)
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"connections/{appId}");
+    }
+
+    public async Task UnsubscribeConnections(string appId)
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"connections/{appId}");
+    }
+
     public async Task<IReadOnlyList<GraphSeriesPoint>> GetGraphSeries(
         string fromIso, string toIso, int bucketSeconds, string groupByStr)
     {

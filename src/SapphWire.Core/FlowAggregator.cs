@@ -8,6 +8,7 @@ public class FlowAggregator
     private long _pendingUp;
     private long _pendingDown;
     private readonly Dictionary<int, (long Up, long Down)> _pendingByPid = new();
+    private readonly Dictionary<FlowKey, (long Up, long Down)> _pendingByFlow = new();
 
     public FlowAggregator(int maxBuckets = 300)
     {
@@ -30,6 +31,13 @@ public class FlowAggregator
                 _pendingByPid[evt.ProcessId] = (current.Up + evt.Bytes, current.Down);
             else
                 _pendingByPid[evt.ProcessId] = (current.Up, current.Down + evt.Bytes);
+
+            var flowKey = new FlowKey(evt.ProcessId, evt.RemoteIp, evt.RemotePort);
+            _pendingByFlow.TryGetValue(flowKey, out var flowCurrent);
+            if (isUp)
+                _pendingByFlow[flowKey] = (flowCurrent.Up + evt.Bytes, flowCurrent.Down);
+            else
+                _pendingByFlow[flowKey] = (flowCurrent.Up, flowCurrent.Down + evt.Bytes);
         }
     }
 
@@ -55,6 +63,16 @@ public class FlowAggregator
         {
             var snapshot = new Dictionary<int, (long Up, long Down)>(_pendingByPid);
             _pendingByPid.Clear();
+            return snapshot;
+        }
+    }
+
+    public Dictionary<FlowKey, (long Up, long Down)> DrainPerFlow()
+    {
+        lock (_lock)
+        {
+            var snapshot = new Dictionary<FlowKey, (long Up, long Down)>(_pendingByFlow);
+            _pendingByFlow.Clear();
             return snapshot;
         }
     }
