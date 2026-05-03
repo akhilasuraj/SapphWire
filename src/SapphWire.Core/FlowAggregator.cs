@@ -18,13 +18,15 @@ public class FlowAggregator
     {
         lock (_lock)
         {
-            if (evt.Direction == TrafficDirection.Up)
+            var isUp = evt.Direction == TrafficDirection.Up;
+
+            if (isUp)
                 _pendingUp += evt.Bytes;
             else
                 _pendingDown += evt.Bytes;
 
             _pendingByPid.TryGetValue(evt.ProcessId, out var current);
-            if (evt.Direction == TrafficDirection.Up)
+            if (isUp)
                 _pendingByPid[evt.ProcessId] = (current.Up + evt.Bytes, current.Down);
             else
                 _pendingByPid[evt.ProcessId] = (current.Up, current.Down + evt.Bytes);
