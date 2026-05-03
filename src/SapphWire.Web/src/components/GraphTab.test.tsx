@@ -176,6 +176,55 @@ describe("GraphTab", () => {
     expect(names).toContain("Other");
   });
 
+  it("clicking Publishers filter passes Publishers to useGraphData", () => {
+    render(<GraphTab connection={null} />);
+
+    fireEvent.click(screen.getByText("Publishers"));
+
+    expect(mockUseGraphData).toHaveBeenCalledWith(null, "5 Minutes", "Publishers");
+  });
+
+  it("configures dataZoom with both inside and slider types", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+
+    render(<GraphTab connection={null} />);
+
+    const lastCall =
+      mockEchartsInstance.setOption.mock.calls[
+        mockEchartsInstance.setOption.mock.calls.length - 1
+      ];
+    const options = lastCall[0] as { dataZoom?: Array<{ type: string }> };
+
+    expect(options.dataZoom).toBeDefined();
+    const types = options.dataZoom!.map((d) => d.type);
+    expect(types).toContain("inside");
+    expect(types).toContain("slider");
+  });
+
+  it("Y-axis scale change updates chart max value", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+
+    render(<GraphTab connection={null} />);
+
+    fireEvent.change(screen.getByTestId("y-axis-scale"), {
+      target: { value: "1 MB/s" },
+    });
+
+    const lastCall =
+      mockEchartsInstance.setOption.mock.calls[
+        mockEchartsInstance.setOption.mock.calls.length - 1
+      ];
+    const options = lastCall[0] as { yAxis?: { max?: number } };
+
+    expect(options.yAxis?.max).toBe(1_000_000);
+  });
+
   it("includes alert marker placeholder in chart options", () => {
     const data: GraphPoint[] = [
       { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },

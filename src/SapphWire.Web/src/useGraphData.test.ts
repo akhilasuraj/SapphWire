@@ -238,6 +238,47 @@ describe("useGraphData", () => {
     vi.useRealTimers();
   });
 
+  it("invokes with bucket=1 and groupBy=App for 5 Minutes + Apps", async () => {
+    const conn = createMockConnection();
+    conn.invoke.mockResolvedValue([]);
+
+    renderHook(() =>
+      useGraphData(conn as unknown as Conn, "5 Minutes", "Apps"),
+    );
+
+    await waitFor(() => {
+      expect(conn.invoke).toHaveBeenCalledWith(
+        "GetGraphSeries",
+        expect.any(String),
+        expect.any(String),
+        1,
+        "App",
+      );
+    });
+  });
+
+  it("does not poll for historical time pills", async () => {
+    vi.useFakeTimers();
+    const conn = createMockConnection();
+    conn.invoke.mockResolvedValue([]);
+
+    renderHook(() =>
+      useGraphData(conn as unknown as Conn, "3 Hours", "All"),
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(conn.invoke).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(conn.invoke).toHaveBeenCalledTimes(1);
+
+    vi.useRealTimers();
+  });
+
   it("clears historical data when switching to live mode", async () => {
     const conn = createMockConnection();
     const historical: GraphPoint[] = [
