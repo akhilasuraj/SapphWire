@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 
 export interface ConnectionDetail {
@@ -17,29 +17,21 @@ export function useConnections(
 ): ConnectionDetail[] {
   const [data, setData] = useState<ConnectionDetail[]>([]);
 
-  const onSnapshot = useCallback((snapshot: ConnectionDetail[]) => {
-    setData(snapshot);
-  }, []);
-
-  const onDelta = useCallback((delta: ConnectionDetail[]) => {
-    setData(delta);
-  }, []);
-
   useEffect(() => {
     if (!connection || !appId) return;
 
     setData([]);
-    connection.on("ConnectionsSnapshot", onSnapshot);
-    connection.on("ConnectionsDelta", onDelta);
+    connection.on("ConnectionsSnapshot", setData);
+    connection.on("ConnectionsDelta", setData);
     connection.invoke("SubscribeConnections", appId).catch(() => {});
 
     return () => {
       connection.invoke("UnsubscribeConnections", appId).catch(() => {});
-      connection.off("ConnectionsSnapshot", onSnapshot);
-      connection.off("ConnectionsDelta", onDelta);
+      connection.off("ConnectionsSnapshot", setData);
+      connection.off("ConnectionsDelta", setData);
       setData([]);
     };
-  }, [connection, appId, onSnapshot, onDelta]);
+  }, [connection, appId]);
 
   return data;
 }

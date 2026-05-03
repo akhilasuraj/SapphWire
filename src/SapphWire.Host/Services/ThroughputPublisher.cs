@@ -72,11 +72,10 @@ public class ThroughputPublisher : BackgroundService
             {
                 try
                 {
-                    var activeApps = BuildActiveApps(perFlow);
+                    var (activeApps, connectionsByApp) = BuildAppData(perFlow);
                     await _hub.Clients.Group("activeApps")
                         .SendAsync("ActiveAppsDelta", activeApps, stoppingToken);
 
-                    var connectionsByApp = BuildConnectionsByApp(perFlow);
                     foreach (var (appId, connections) in connectionsByApp)
                     {
                         await _hub.Clients.Group($"connections/{appId}")
@@ -91,46 +90,56 @@ public class ThroughputPublisher : BackgroundService
         }
     }
 
-    private List<ActiveAppRow> BuildActiveApps(
+    private (List<ActiveAppRow>, Dictionary<string, List<ConnectionDetail>>) BuildAppData(
         Dictionary<FlowKey, (long Up, long Down)> perFlow)
     {
-        var appFlows = new Dictionary<string, List<(FlowKey Key, long Up, long Down)>>();
+        var appGroups = new Dictionary<string, List<(FlowKey Key, ProcessInfo Info, long Up, long Down)>>();
 
         foreach (var (flowKey, bytes) in perFlow)
         {
             var info = _processResolver.Resolve(flowKey.Pid);
             var appKey = AppGrouper.GetAppKey(info);
 
-            if (!appFlows.TryGetValue(appKey, out var list))
+            if (!appGroups.TryGetValue(appKey, out var list))
             {
-                list = new List<(FlowKey, long, long)>();
-                appFlows[appKey] = list;
+                list = new();
+                appGroups[appKey] = list;
             }
-            list.Add((flowKey, bytes.Up, bytes.Down));
+            list.Add((flowKey, info, bytes.Up, bytes.Down));
         }
 
-        var result = new List<ActiveAppRow>();
-        foreach (var (appKey, flows) in appFlows)
+        var activeApps = new List<ActiveAppRow>();
+        var connectionsByApp = new Dictionary<string, List<ConnectionDetail>>();
+
+        foreach (var (appKey, flows) in appGroups)
         {
             long totalUp = 0, totalDown = 0;
-            var endpoints = new Dictionary<string, long>();
+            var endpoints = new Dictionary<(string Ip, int Port), long>();
+            var connections = new List<ConnectionDetail>();
 
-            foreach (var (key, up, down) in flows)
+            foreach (var (key, info, up, down) in flows)
             {
                 totalUp += up;
                 totalDown += down;
-                var ep = $"{key.RemoteIp}:{key.RemotePort}";
-                endpoints.TryGetValue(ep, out var epTotal);
-                endpoints[ep] = epTotal + up + down;
+
+                var epKey = (key.RemoteIp, key.RemotePort);
+                endpoints.TryGetValue(epKey, out var epTotal);
+                endpoints[epKey] = epTotal + up + down;
+
+                connections.Add(new ConnectionDetail(
+                    ExeName: info.ExeName,
+                    Pid: key.Pid,
+                    RemoteHost: _dnsResolver.Resolve(key.RemoteIp),
+                    RemotePort: key.RemotePort,
+                    Up: up,
+                    Down: down,
+                    CountryCode: _geoIp.Lookup(key.RemoteIp)
+                ));
             }
 
-            var topEndpointEntry = endpoints.MaxBy(kv => kv.Value);
-            var topEndpointRaw = topEndpointEntry.Key;
-            var topIp = topEndpointRaw.Split(':')[0];
-            var topHostname = _dnsResolver.Resolve(topIp);
-            var topPort = topEndpointRaw.Split(':').Last();
-            var topEndpoint = $"{topHostname}:{topPort}";
-            var countryCode = _geoIp.Lookup(topIp);
+            var topEp = endpoints.MaxBy(kv => kv.Value).Key;
+            var topHostname = _dnsResolver.Resolve(topEp.Ip);
+            var countryCode = _geoIp.Lookup(topEp.Ip);
 
             var sparkPoint = totalUp + totalDown;
             var sparkBuffer = _sparkBuffers.GetOrAdd(appKey, _ => new LinkedList<long>());
@@ -141,54 +150,23 @@ public class ThroughputPublisher : BackgroundService
                     sparkBuffer.RemoveFirst();
             }
 
-            result.Add(new ActiveAppRow(
+            activeApps.Add(new ActiveAppRow(
                 AppId: appKey,
                 DisplayName: appKey,
                 IconUrl: $"/api/icons/{Uri.EscapeDataString(appKey)}",
                 Up: totalUp,
                 Down: totalDown,
                 SparkPoint: sparkPoint,
-                TopEndpoint: topEndpoint,
+                TopEndpoint: $"{topHostname}:{topEp.Port}",
                 EndpointCount: endpoints.Count,
                 CountryCode: countryCode
             ));
+
+            connections.Sort((a, b) => (b.Up + b.Down).CompareTo(a.Up + a.Down));
+            connectionsByApp[appKey] = connections;
         }
 
-        return result.OrderByDescending(a => a.Up + a.Down).ToList();
-    }
-
-    private Dictionary<string, List<ConnectionDetail>> BuildConnectionsByApp(
-        Dictionary<FlowKey, (long Up, long Down)> perFlow)
-    {
-        var result = new Dictionary<string, List<ConnectionDetail>>();
-
-        foreach (var (flowKey, bytes) in perFlow)
-        {
-            var info = _processResolver.Resolve(flowKey.Pid);
-            var appKey = AppGrouper.GetAppKey(info);
-            var hostname = _dnsResolver.Resolve(flowKey.RemoteIp);
-            var countryCode = _geoIp.Lookup(flowKey.RemoteIp);
-
-            if (!result.TryGetValue(appKey, out var list))
-            {
-                list = new List<ConnectionDetail>();
-                result[appKey] = list;
-            }
-
-            list.Add(new ConnectionDetail(
-                ExeName: info.ExeName,
-                Pid: flowKey.Pid,
-                RemoteHost: hostname,
-                RemotePort: flowKey.RemotePort,
-                Up: bytes.Up,
-                Down: bytes.Down,
-                CountryCode: countryCode
-            ));
-        }
-
-        foreach (var list in result.Values)
-            list.Sort((a, b) => (b.Up + b.Down).CompareTo(a.Up + a.Down));
-
-        return result;
+        activeApps.Sort((a, b) => (b.Up + b.Down).CompareTo(a.Up + a.Down));
+        return (activeApps, connectionsByApp);
     }
 }

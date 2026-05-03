@@ -26,19 +26,19 @@ public class FlowAggregator
             else
                 _pendingDown += evt.Bytes;
 
-            _pendingByPid.TryGetValue(evt.ProcessId, out var current);
-            if (isUp)
-                _pendingByPid[evt.ProcessId] = (current.Up + evt.Bytes, current.Down);
-            else
-                _pendingByPid[evt.ProcessId] = (current.Up, current.Down + evt.Bytes);
-
-            var flowKey = new FlowKey(evt.ProcessId, evt.RemoteIp, evt.RemotePort);
-            _pendingByFlow.TryGetValue(flowKey, out var flowCurrent);
-            if (isUp)
-                _pendingByFlow[flowKey] = (flowCurrent.Up + evt.Bytes, flowCurrent.Down);
-            else
-                _pendingByFlow[flowKey] = (flowCurrent.Up, flowCurrent.Down + evt.Bytes);
+            Accumulate(_pendingByPid, evt.ProcessId, evt.Bytes, isUp);
+            Accumulate(_pendingByFlow, new FlowKey(evt.ProcessId, evt.RemoteIp, evt.RemotePort), evt.Bytes, isUp);
         }
+    }
+
+    private static void Accumulate<TKey>(
+        Dictionary<TKey, (long Up, long Down)> dict, TKey key, long bytes, bool isUp)
+        where TKey : notnull
+    {
+        dict.TryGetValue(key, out var current);
+        dict[key] = isUp
+            ? (current.Up + bytes, current.Down)
+            : (current.Up, current.Down + bytes);
     }
 
     public ThroughputBucket Tick(DateTimeOffset now)
