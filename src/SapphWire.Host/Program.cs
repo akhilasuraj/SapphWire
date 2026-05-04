@@ -26,6 +26,18 @@ builder.Services.AddHostedService<CaptureHostedService>();
 builder.Services.AddHostedService<ThroughputPublisher>();
 builder.Services.AddHostedService<RollupService>();
 
+// Things tab services
+builder.Services.AddSingleton<OuiDatabase>();
+builder.Services.AddSingleton<NetworkContext>();
+builder.Services.AddSingleton<DeviceTracker>(sp =>
+    new DeviceTracker(sp.GetRequiredService<OuiDatabase>()));
+builder.Services.AddSingleton<SubnetScanner>();
+builder.Services.AddSingleton<IDiscoverySource, ArpDiscovery>();
+builder.Services.AddSingleton<IDiscoverySource, MdnsDiscovery>();
+builder.Services.AddSingleton<IDiscoverySource, SsdpDiscovery>();
+builder.Services.AddHostedService<DiscoveryService>();
+builder.Services.AddHostedService<ThingsPublisher>();
+
 var app = builder.Build();
 
 await app.Services.GetRequiredService<IPersistence>().InitializeAsync();
@@ -142,6 +154,10 @@ app.Lifetime.ApplicationStarted.Register(() =>
     var tray = app.Services.GetRequiredService<TrayManager>();
     tray.Initialize();
     tray.OpenDashboard();
+
+    // Initialize network context on startup
+    var networkContext = app.Services.GetRequiredService<NetworkContext>();
+    networkContext.Refresh();
 });
 
 await app.RunAsync();

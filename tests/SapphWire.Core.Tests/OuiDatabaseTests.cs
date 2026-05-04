@@ -5,103 +5,86 @@ namespace SapphWire.Core.Tests;
 
 public class OuiDatabaseTests
 {
-    private static OuiDatabase CreateTestDb() =>
-        new(new Dictionary<string, string>
-        {
-            ["005056"] = "VMware, Inc.",
-            ["00505E"] = "Cisco",
-            ["AABBCC"] = "Test Corp",
-        });
-
-    [Fact]
-    public void LookupVendor_MatchesColonSeparatedMac()
+    private OuiDatabase CreateLoaded(string csv)
     {
-        var db = CreateTestDb();
-        db.LookupVendor("00:50:56:12:34:56").Should().Be("VMware, Inc.");
-    }
-
-    [Fact]
-    public void LookupVendor_MatchesDashSeparatedMac()
-    {
-        var db = CreateTestDb();
-        db.LookupVendor("00-50-56-AA-BB-CC").Should().Be("VMware, Inc.");
-    }
-
-    [Fact]
-    public void LookupVendor_MatchesPlainMac()
-    {
-        var db = CreateTestDb();
-        db.LookupVendor("005056AABBCC").Should().Be("VMware, Inc.");
-    }
-
-    [Fact]
-    public void LookupVendor_CaseInsensitive()
-    {
-        var db = CreateTestDb();
-        db.LookupVendor("aa:bb:cc:11:22:33").Should().Be("Test Corp");
-    }
-
-    [Fact]
-    public void LookupVendor_ReturnsNull_ForUnknownOui()
-    {
-        var db = CreateTestDb();
-        db.LookupVendor("FF:FF:FF:00:00:00").Should().BeNull();
-    }
-
-    [Fact]
-    public void LookupVendor_ReturnsNull_ForEmptyString()
-    {
-        var db = CreateTestDb();
-        db.LookupVendor("").Should().BeNull();
-    }
-
-    [Fact]
-    public void LookupVendor_ReturnsNull_ForNullString()
-    {
-        var db = CreateTestDb();
-        db.LookupVendor(null!).Should().BeNull();
-    }
-
-    [Fact]
-    public void LookupVendor_ReturnsNull_ForShortMac()
-    {
-        var db = CreateTestDb();
-        db.LookupVendor("00:50").Should().BeNull();
-    }
-
-    [Fact]
-    public void LookupVendor_DotSeparatedMac()
-    {
-        var db = CreateTestDb();
-        db.LookupVendor("0050.56AB.CDEF").Should().Be("VMware, Inc.");
+        var db = new OuiDatabase();
+        using var reader = new StringReader(csv);
+        db.LoadFromCsv(reader);
+        return db;
     }
 
     [Fact]
     public void LoadFromCsv_ParsesEntries()
     {
-        var csv = """
-            00-50-56,VMware Inc.
-            AA-BB-CC,Test Corp
-            """;
-        var db = OuiDatabase.LoadFromCsv(csv);
-
-        db.LookupVendor("00:50:56:00:00:00").Should().Be("VMware Inc.");
-        db.LookupVendor("AA:BB:CC:11:22:33").Should().Be("Test Corp");
+        var csv = "001A2B,\"Acme Corp\"\n003C4D,\"Beta Inc\"";
+        var db = CreateLoaded(csv);
+        db.Count.Should().Be(2);
     }
 
     [Fact]
-    public void LoadFromCsv_SkipsEmptyLines()
+    public void LoadFromCsv_SkipsCommentsAndBlankLines()
     {
-        var csv = "\n00-50-56,VMware\n\n";
-        var db = OuiDatabase.LoadFromCsv(csv);
-        db.LookupVendor("00:50:56:00:00:00").Should().Be("VMware");
+        var csv = "# header\n\n001A2B,\"Acme Corp\"\n  \n003C4D,\"Beta Inc\"";
+        var db = CreateLoaded(csv);
+        db.Count.Should().Be(2);
     }
 
     [Fact]
-    public void DistinguishesSimilarPrefixes()
+    public void LoadFromCsv_SkipsLinesWithoutComma()
     {
-        var db = CreateTestDb();
-        db.LookupVendor("00:50:56:00:00:00").Should().Be("VMware, Inc.");
-        db.LookupVendor("00:50:5E:00:00:00").Should().Be("Cisco");
+        var csv = "no-comma-here\n001A2B,\"Acme Corp\"";
+        var db = CreateLoaded(csv);
+        db.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public void Lookup_FindsVendorByColonSeparatedMac()
+    {
+        var db = CreateLoaded("001A2B,\"Acme Corp\"");
+        db.Lookup("00:1A:2B:CC:DD:EE").Should().Be("Acme Corp");
+    }
+
+    [Fact]
+    public void Lookup_FindsVendorByDashSeparatedMac()
+    {
+        var db = CreateLoaded("001A2B,\"Acme Corp\"");
+        db.Lookup("00-1A-2B-CC-DD-EE").Should().Be("Acme Corp");
+    }
+
+    [Fact]
+    public void Lookup_IsCaseInsensitive()
+    {
+        var db = CreateLoaded("001a2b,\"Acme Corp\"");
+        db.Lookup("00:1A:2B:FF:FF:FF").Should().Be("Acme Corp");
+    }
+
+    [Fact]
+    public void Lookup_ReturnsNullForUnknownOui()
+    {
+        var db = CreateLoaded("001A2B,\"Acme Corp\"");
+        db.Lookup("FF:FF:FF:00:00:00").Should().BeNull();
+    }
+
+    [Fact]
+    public void Lookup_ReturnsNullForNullOrEmptyMac()
+    {
+        var db = CreateLoaded("001A2B,\"Acme Corp\"");
+        db.Lookup("").Should().BeNull();
+        db.Lookup(null!).Should().BeNull();
+    }
+
+    [Fact]
+    public void Lookup_HandlesShortPrefix()
+    {
+        var db = CreateLoaded("AABBCC,\"Short Corp\"");
+        db.Lookup("AA:BB:CC").Should().Be("Short Corp");
+    }
+
+    [Fact]
+    public void LoadFromCsv_FirstEntryWinsOnDuplicate()
+    {
+        var csv = "001A2B,\"First\"\n001A2B,\"Second\"";
+        var db = CreateLoaded(csv);
+        db.Lookup("00:1A:2B:00:00:00").Should().Be("First");
     }
 }

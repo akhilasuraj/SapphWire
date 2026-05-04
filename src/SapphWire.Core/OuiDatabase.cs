@@ -2,43 +2,48 @@ namespace SapphWire.Core;
 
 public class OuiDatabase
 {
-    private readonly Dictionary<string, string> _lookup;
+    private readonly Dictionary<string, string> _entries = new(StringComparer.OrdinalIgnoreCase);
 
-    public OuiDatabase(IReadOnlyDictionary<string, string> entries)
+    public int Count => _entries.Count;
+
+    public void LoadFromCsv(TextReader reader)
     {
-        _lookup = new Dictionary<string, string>(
-            entries, StringComparer.OrdinalIgnoreCase);
+        string? line;
+        while ((line = reader.ReadLine()) != null)
+        {
+            if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+                continue;
+
+            var parts = line.Split(',', 2);
+            if (parts.Length < 2)
+                continue;
+
+            var prefix = NormalizePrefix(parts[0].Trim());
+            var vendor = parts[1].Trim().Trim('"');
+
+            if (prefix.Length > 0 && vendor.Length > 0)
+                _entries.TryAdd(prefix, vendor);
+        }
     }
 
-    public string? LookupVendor(string macAddress)
+    public string? Lookup(string mac)
     {
-        if (string.IsNullOrWhiteSpace(macAddress)) return null;
+        if (string.IsNullOrWhiteSpace(mac))
+            return null;
 
-        var normalized = macAddress
+        var prefix = NormalizePrefix(mac);
+        if (prefix.Length >= 6)
+            prefix = prefix[..6];
+
+        return _entries.TryGetValue(prefix, out var vendor) ? vendor : null;
+    }
+
+    private static string NormalizePrefix(string input)
+    {
+        return input
             .Replace(":", "")
             .Replace("-", "")
-            .Replace(".", "");
-
-        if (normalized.Length < 6) return null;
-
-        var prefix = normalized[..6].ToUpperInvariant();
-        return _lookup.GetValueOrDefault(prefix);
-    }
-
-    public static OuiDatabase LoadFromCsv(string csvContent)
-    {
-        var entries = new Dictionary<string, string>();
-        foreach (var line in csvContent.Split('\n'))
-        {
-            if (string.IsNullOrWhiteSpace(line)) continue;
-            var parts = line.Split(',', 2);
-            if (parts.Length < 2) continue;
-
-            var prefix = parts[0].Trim().Replace("-", "").Replace(":", "");
-            var vendor = parts[1].Trim().Trim('"');
-            if (prefix.Length >= 6)
-                entries[prefix[..6].ToUpperInvariant()] = vendor;
-        }
-        return new OuiDatabase(entries);
+            .Replace(".", "")
+            .ToUpperInvariant();
     }
 }
