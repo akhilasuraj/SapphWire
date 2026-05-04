@@ -68,6 +68,14 @@ public class DashboardHub : Hub
         return await _persistence.GetGroupedSeriesAsync(from, to, bucketSize, groupBy);
     }
 
+    public async Task<UsageResult> GetUsage(
+        string fromIso, string toIso, string groupBy, UsageFilters filters)
+    {
+        var from = DateTimeOffset.Parse(fromIso);
+        var to = DateTimeOffset.Parse(toIso);
+        return await _persistence.GetUsageAsync(from, to, groupBy, filters);
+    }
+
     public override async Task OnConnectedAsync()
     {
         await Clients.Caller.SendAsync("Pong");

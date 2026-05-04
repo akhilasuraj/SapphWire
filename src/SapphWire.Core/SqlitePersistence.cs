@@ -61,6 +61,28 @@ public class SqlitePersistence : IPersistence
                 PRIMARY KEY (timestamp, app_name)
             );
 
+            CREATE TABLE IF NOT EXISTS flows_1s_detail (
+                timestamp    INTEGER NOT NULL,
+                app_name     TEXT NOT NULL,
+                publisher    TEXT NOT NULL DEFAULT '',
+                remote_host  TEXT NOT NULL,
+                remote_port  INTEGER NOT NULL,
+                bytes_up     INTEGER NOT NULL,
+                bytes_down   INTEGER NOT NULL,
+                PRIMARY KEY (timestamp, app_name, remote_host, remote_port)
+            );
+
+            CREATE TABLE IF NOT EXISTS flows_1h_detail (
+                timestamp    INTEGER NOT NULL,
+                app_name     TEXT NOT NULL,
+                publisher    TEXT NOT NULL DEFAULT '',
+                remote_host  TEXT NOT NULL,
+                remote_port  INTEGER NOT NULL,
+                bytes_up     INTEGER NOT NULL,
+                bytes_down   INTEGER NOT NULL,
+                PRIMARY KEY (timestamp, app_name, remote_host, remote_port)
+            );
+
             CREATE TABLE IF NOT EXISTS alerts (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp   INTEGER NOT NULL,
@@ -290,6 +312,229 @@ public class SqlitePersistence : IPersistence
         }
     }
 
+    public async Task WriteDetailBucketsAsync(IReadOnlyList<DetailFlowBucket> buckets)
+    {
+        if (buckets.Count == 0) return;
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var transaction = _connection.BeginTransaction();
+
+            using var cmd = _connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = """
+                INSERT INTO flows_1s_detail (timestamp, app_name, publisher, remote_host, remote_port, bytes_up, bytes_down)
+                VALUES (@ts, @app, @pub, @host, @port, @up, @down)
+                ON CONFLICT(timestamp, app_name, remote_host, remote_port) DO UPDATE SET
+                    bytes_up   = flows_1s_detail.bytes_up   + excluded.bytes_up,
+                    bytes_down = flows_1s_detail.bytes_down + excluded.bytes_down;
+                """;
+
+            var tsParam = cmd.Parameters.Add("@ts", SqliteType.Integer);
+            var appParam = cmd.Parameters.Add("@app", SqliteType.Text);
+            var pubParam = cmd.Parameters.Add("@pub", SqliteType.Text);
+            var hostParam = cmd.Parameters.Add("@host", SqliteType.Text);
+            var portParam = cmd.Parameters.Add("@port", SqliteType.Integer);
+            var upParam = cmd.Parameters.Add("@up", SqliteType.Integer);
+            var downParam = cmd.Parameters.Add("@down", SqliteType.Integer);
+
+            foreach (var bucket in buckets)
+            {
+                tsParam.Value = bucket.Timestamp.ToUnixTimeSeconds();
+                appParam.Value = bucket.AppName;
+                pubParam.Value = bucket.Publisher;
+                hostParam.Value = bucket.RemoteHost;
+                portParam.Value = bucket.RemotePort;
+                upParam.Value = bucket.BytesUp;
+                downParam.Value = bucket.BytesDown;
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            transaction.Commit();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task<UsageResult> GetUsageAsync(
+        DateTimeOffset from, DateTimeOffset to, string groupBy, UsageFilters filters)
+    {
+        var fromUnix = from.ToUnixTimeSeconds();
+        var toUnix = to.ToUnixTimeSeconds();
+        var rangeSec = toUnix - fromUnix;
+        var table = rangeSec > 86400 ? "flows_1h_detail" : "flows_1s_detail";
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            var leftColumn = groupBy switch
+            {
+                "App" => "app_name",
+                "Publisher" => "publisher",
+                "Protocol" => "remote_port",
+                _ => "app_name",
+            };
+
+            var whereFilters = new List<string> { "timestamp >= @from", "timestamp <= @to" };
+            var parameters = new Dictionary<string, object>
+            {
+                ["@from"] = fromUnix,
+                ["@to"] = toUnix,
+            };
+
+            if (filters.Left.Count > 0)
+            {
+                var filterCol = leftColumn;
+                var placeholders = new List<string>();
+                for (var i = 0; i < filters.Left.Count; i++)
+                {
+                    var p = $"@fl{i}";
+                    placeholders.Add(p);
+                    parameters[p] = filters.Left[i];
+                }
+                whereFilters.Add($"{filterCol} IN ({string.Join(", ", placeholders)})");
+            }
+
+            if (filters.Middle.Count > 0)
+            {
+                var placeholders = new List<string>();
+                for (var i = 0; i < filters.Middle.Count; i++)
+                {
+                    var p = $"@fm{i}";
+                    placeholders.Add(p);
+                    parameters[p] = filters.Middle[i];
+                }
+                whereFilters.Add($"remote_host IN ({string.Join(", ", placeholders)})");
+            }
+
+            if (filters.Right.Count > 0)
+            {
+                var placeholders = new List<string>();
+                for (var i = 0; i < filters.Right.Count; i++)
+                {
+                    var p = $"@fr{i}";
+                    placeholders.Add(p);
+                    parameters[p] = int.TryParse(filters.Right[i], out var port) ? port : -1;
+                }
+                whereFilters.Add($"remote_port IN ({string.Join(", ", placeholders)})");
+            }
+
+            var whereClause = string.Join(" AND ", whereFilters);
+
+            var left = await QueryGroupedUsage(table, leftColumn, whereClause, parameters, groupBy == "Protocol");
+            var middle = await QueryGroupedUsage(table, "remote_host", whereClause, parameters, false);
+            var right = await QueryGroupedUsage(table, "remote_port", whereClause, parameters, true);
+
+            var (totalUp, totalDown) = await QueryTotals(table, whereClause, parameters);
+
+            var sparkline = await QuerySparkline(table, whereClause, parameters, rangeSec);
+
+            return new UsageResult(left, middle, right, totalUp, totalDown, sparkline);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    private async Task<IReadOnlyList<UsageRow>> QueryGroupedUsage(
+        string table, string groupColumn, string whereClause,
+        Dictionary<string, object> parameters, bool mapPort)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = $"""
+            SELECT {groupColumn}, SUM(bytes_up), SUM(bytes_down)
+            FROM {table}
+            WHERE {whereClause}
+            GROUP BY {groupColumn}
+            ORDER BY SUM(bytes_up + bytes_down) DESC
+            LIMIT 50;
+            """;
+
+        foreach (var (key, value) in parameters)
+            cmd.Parameters.AddWithValue(key, value);
+
+        var results = new List<UsageRow>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var name = mapPort
+                ? PortProtocol.Resolve(reader.GetInt32(0))
+                : reader.GetString(0);
+            var up = reader.GetInt64(1);
+            var down = reader.GetInt64(2);
+            results.Add(new UsageRow(name, up, down));
+        }
+
+        if (mapPort)
+        {
+            results = results
+                .GroupBy(r => r.Name)
+                .Select(g => new UsageRow(g.Key, g.Sum(r => r.BytesUp), g.Sum(r => r.BytesDown)))
+                .OrderByDescending(r => r.BytesUp + r.BytesDown)
+                .ToList();
+        }
+
+        return results;
+    }
+
+    private async Task<(long Up, long Down)> QueryTotals(
+        string table, string whereClause, Dictionary<string, object> parameters)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = $"""
+            SELECT COALESCE(SUM(bytes_up), 0), COALESCE(SUM(bytes_down), 0)
+            FROM {table}
+            WHERE {whereClause};
+            """;
+
+        foreach (var (key, value) in parameters)
+            cmd.Parameters.AddWithValue(key, value);
+
+        using var reader = await cmd.ExecuteReaderAsync();
+        if (await reader.ReadAsync())
+            return (reader.GetInt64(0), reader.GetInt64(1));
+        return (0, 0);
+    }
+
+    private async Task<IReadOnlyList<SparklinePoint>> QuerySparkline(
+        string table, string whereClause, Dictionary<string, object> parameters,
+        long rangeSec)
+    {
+        var bucketSec = rangeSec switch
+        {
+            <= 86400 => 300,
+            <= 604800 => 3600,
+            _ => 86400,
+        };
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = $"""
+            SELECT (timestamp / {bucketSec}) * {bucketSec} AS ts,
+                   SUM(bytes_up + bytes_down) AS total
+            FROM {table}
+            WHERE {whereClause}
+            GROUP BY ts
+            ORDER BY ts ASC;
+            """;
+
+        foreach (var (key, value) in parameters)
+            cmd.Parameters.AddWithValue(key, value);
+
+        var results = new List<SparklinePoint>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            results.Add(new SparklinePoint(
+                DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(0)).ToString("o"),
+                reader.GetInt64(1)));
+        }
+        return results;
+    }
+
     public async Task RunRollupAsync(DateTimeOffset now)
     {
         var cutoff = now.AddHours(-24).ToUnixTimeSeconds();
@@ -346,6 +591,32 @@ public class SqlitePersistence : IPersistence
             {
                 cmd.Transaction = transaction;
                 cmd.CommandText = "DELETE FROM flows_1s_by_app WHERE timestamp < @cutoff;";
+                cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            using (var cmd = _connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = """
+                    INSERT INTO flows_1h_detail (timestamp, app_name, publisher, remote_host, remote_port, bytes_up, bytes_down)
+                    SELECT (timestamp / 3600) * 3600, app_name, publisher, remote_host, remote_port,
+                           SUM(bytes_up), SUM(bytes_down)
+                    FROM flows_1s_detail
+                    WHERE timestamp < @cutoff
+                    GROUP BY timestamp / 3600, app_name, remote_host, remote_port
+                    ON CONFLICT(timestamp, app_name, remote_host, remote_port) DO UPDATE SET
+                        bytes_up   = flows_1h_detail.bytes_up   + excluded.bytes_up,
+                        bytes_down = flows_1h_detail.bytes_down + excluded.bytes_down;
+                    """;
+                cmd.Parameters.AddWithValue("@cutoff", cutoff);
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            using (var cmd = _connection.CreateCommand())
+            {
+                cmd.Transaction = transaction;
+                cmd.CommandText = "DELETE FROM flows_1s_detail WHERE timestamp < @cutoff;";
                 cmd.Parameters.AddWithValue("@cutoff", cutoff);
                 await cmd.ExecuteNonQueryAsync();
             }

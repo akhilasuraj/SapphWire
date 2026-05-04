@@ -59,6 +59,22 @@ public class ThroughputPublisher : BackgroundService
 
                     await _persistence.WriteGroupedBucketsAsync(grouped);
                 }
+
+                if (perFlow.Count > 0)
+                {
+                    var detailBuckets = perFlow.Select(kv =>
+                    {
+                        var info = _processResolver.Resolve(kv.Key.Pid);
+                        var appKey = AppGrouper.GetAppKey(info);
+                        var hostname = _dnsResolver.Resolve(kv.Key.RemoteIp);
+                        return new DetailFlowBucket(
+                            bucket.Timestamp, appKey, info.Publisher,
+                            hostname, kv.Key.RemotePort,
+                            kv.Value.Up, kv.Value.Down);
+                    }).ToList();
+
+                    await _persistence.WriteDetailBucketsAsync(detailBuckets);
+                }
             }
             catch
             {

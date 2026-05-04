@@ -2,6 +2,7 @@ import { useState } from "react";
 import TopBar from "./components/TopBar";
 import ConnectionStatus from "./components/ConnectionStatus";
 import GraphTab from "./components/GraphTab";
+import UsageTab from "./components/UsageTab";
 import FirewallTab from "./components/FirewallTab";
 import { useSignalR } from "./useSignalR";
 
@@ -21,6 +22,8 @@ export default function App() {
       <main className="flex-1 flex flex-col">
         {activeTab === "Graph" ? (
           <GraphTab connection={connectedConnection} />
+        ) : activeTab === "Usage" ? (
+          <UsageTab connection={connectedConnection} />
         ) : activeTab === "Firewall" ? (
           <FirewallTab connection={connectedConnection} />
         ) : (
