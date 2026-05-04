@@ -9,6 +9,7 @@ interface Props {
 }
 
 type AlertPill = "Important" | "All";
+const ALERT_PILLS: AlertPill[] = ["Important", "All"];
 
 function getDateGroup(timestamp: string): string {
   const date = new Date(timestamp);
@@ -163,8 +164,6 @@ export default function AlertsTab({ connection }: Props) {
   const [activePill, setActivePill] = useState<AlertPill>("Important");
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  const pills: AlertPill[] = ["Important", "All"];
-
   const handleToggle = (alert: AlertRecord) => {
     if (expandedId === alert.id) {
       setExpandedId(null);
@@ -187,7 +186,7 @@ export default function AlertsTab({ connection }: Props) {
     <div className="flex-1 flex flex-col p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex gap-2">
-          {pills.map((pill) => (
+          {ALERT_PILLS.map((pill) => (
             <button
               key={pill}
               onClick={() => setActivePill(pill)}

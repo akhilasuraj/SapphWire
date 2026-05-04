@@ -5,6 +5,17 @@ vi.mock("../useGraphData", () => ({
   useGraphData: vi.fn(() => []),
 }));
 
+vi.mock("../useAlerts", () => ({
+  useAlerts: vi.fn(() => ({
+    alerts: [],
+    unreadCount: 0,
+    alertTimestamps: [],
+    markRead: vi.fn(),
+    markAllRead: vi.fn(),
+    deleteAlert: vi.fn(),
+  })),
+}));
+
 vi.mock("echarts", () => {
   const instance = {
     setOption: vi.fn(),

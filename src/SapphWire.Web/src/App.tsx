@@ -5,7 +5,6 @@ import GraphTab from "./components/GraphTab";
 import FirewallTab from "./components/FirewallTab";
 import AlertsTab from "./components/AlertsTab";
 import { useSignalR } from "./useSignalR";
-import { useAlerts } from "./useAlerts";
 
 export type TabName = "Graph" | "Usage" | "Things" | "Firewall" | "Alerts";
 
@@ -16,17 +15,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabName>("Graph");
 
   const connectedConnection = status === "connected" ? connection : null;
-  const { alertTimestamps } = useAlerts(connectedConnection);
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
       <TopBar activeTab={activeTab} onTabChange={setActiveTab} />
       <main className="flex-1 flex flex-col">
         {activeTab === "Graph" ? (
-          <GraphTab
-            connection={connectedConnection}
-            alertTimestamps={alertTimestamps}
-          />
+          <GraphTab connection={connectedConnection} />
         ) : activeTab === "Firewall" ? (
           <FirewallTab connection={connectedConnection} />
         ) : activeTab === "Alerts" ? (

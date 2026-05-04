@@ -41,12 +41,6 @@ public class DashboardHub : Hub
         await _persistence.DeleteAlertAsync(alertId);
     }
 
-    public async Task<IReadOnlyList<string>> GetAlertTimestamps()
-    {
-        var alerts = await _persistence.GetAlertsAsync();
-        return alerts.Select(a => a.Timestamp.ToString("o")).ToList();
-    }
-
     public async Task Ping()
     {
         await Clients.Caller.SendAsync("Pong");

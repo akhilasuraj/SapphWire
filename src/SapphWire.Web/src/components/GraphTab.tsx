@@ -8,10 +8,10 @@ import {
   type YAxisScale,
   type GraphPoint,
 } from "../useGraphData";
+import { useAlerts } from "../useAlerts";
 
 interface Props {
   connection: HubConnection | null;
-  alertTimestamps?: string[];
 }
 
 const TIME_PILLS: TimePill[] = [
@@ -78,12 +78,13 @@ function extractSeriesNames(data: GraphPoint[]): string[] {
   return Array.from(nameSet);
 }
 
-export default function GraphTab({ connection, alertTimestamps }: Props) {
+export default function GraphTab({ connection }: Props) {
   const [timePill, setTimePill] = useState<TimePill>("5 Minutes");
   const [filterPill, setFilterPill] = useState<FilterPill>("All");
   const [yAxisScale, setYAxisScale] = useState<YAxisScale>("Auto");
 
   const data = useGraphData(connection, timePill, filterPill);
+  const { alertTimestamps } = useAlerts(connection);
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
 
