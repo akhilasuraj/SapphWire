@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 import { useThings } from "../useThings";
 import type { Device } from "../types";
@@ -56,8 +56,6 @@ export default function ThingsTab({ connection }: Props) {
     y: number;
     device: Device;
   } | null>(null);
-  const contextMenuRef = useRef<HTMLDivElement>(null);
-
   const activeCount = devices.filter((d) => d.online).length;
   const filtered = filter === "active" ? devices.filter((d) => d.online) : devices;
   const sorted = sortDevices(filtered);
@@ -84,7 +82,6 @@ export default function ThingsTab({ connection }: Props) {
 
   return (
     <div className="flex-1 flex flex-col p-4 gap-4">
-      {/* Network Banner */}
       {networkInfo ? (
         <div className="flex items-center justify-between bg-gray-900 rounded-lg px-4 py-3 border border-gray-800">
           <div className="flex items-center gap-3">
@@ -122,7 +119,6 @@ export default function ThingsTab({ connection }: Props) {
         </div>
       )}
 
-      {/* Controls: Filters + Scan + Last scan time */}
       <div className="flex items-center justify-between">
         <div className="flex gap-2">
           <button
@@ -169,7 +165,6 @@ export default function ThingsTab({ connection }: Props) {
         </div>
       </div>
 
-      {/* Device Table */}
       <div className="flex-1 overflow-auto">
         <table className="w-full">
           <thead>
@@ -237,10 +232,8 @@ export default function ThingsTab({ connection }: Props) {
         )}
       </div>
 
-      {/* Context Menu */}
       {contextMenu && (
         <div
-          ref={contextMenuRef}
           className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[180px] z-50"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >

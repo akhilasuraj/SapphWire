@@ -25,7 +25,7 @@ builder.Services.AddSingleton<IDiscoverySource, ArpDiscovery>();
 builder.Services.AddSingleton<IDiscoverySource, MdnsDiscovery>();
 builder.Services.AddSingleton<IDiscoverySource, SsdpDiscovery>();
 builder.Services.AddHostedService<DiscoveryService>();
-builder.Services.AddHostedService<Services.ThingsPublisher>();
+builder.Services.AddHostedService<ThingsPublisher>();
 
 var app = builder.Build();
 

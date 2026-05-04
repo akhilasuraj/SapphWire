@@ -7,6 +7,8 @@ public class DeviceTracker
     private readonly OuiDatabase _oui;
     private readonly TimeSpan _onlineThreshold;
 
+    public TimeSpan OnlineThreshold => _onlineThreshold;
+
     public event Action<DiscoveredDevice>? DeviceUpdated;
     public event Action<string>? DeviceRemoved;
 

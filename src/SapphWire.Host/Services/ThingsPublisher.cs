@@ -58,7 +58,7 @@ public class ThingsPublisher : BackgroundService
                 device.NetworkId,
                 FirstSeen = device.FirstSeen.ToString("o"),
                 LastSeen = device.LastSeen.ToString("o"),
-                Online = device.IsOnline(TimeSpan.FromSeconds(90)),
+                Online = device.IsOnline(_tracker.OnlineThreshold),
                 device.IsThisPc,
                 device.IsGateway,
             };
