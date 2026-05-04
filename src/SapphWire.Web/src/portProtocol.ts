@@ -19,8 +19,8 @@ const PORT_MAP: Record<number, string> = {
   1900: "SSDP",
   3389: "RDP",
   3478: "STUN",
-  5353: "mDNS",
   5228: "GCM",
+  5353: "mDNS",
   8080: "HTTP Alt",
   8443: "HTTPS Alt",
 };

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 
 export type UsagePeriod = "Day" | "Week" | "Month";
@@ -90,8 +90,6 @@ export function useUsageData(
   filters: UsageFilters,
 ): UsageData {
   const [data, setData] = useState<UsageData>(EMPTY);
-  const filtersRef = useRef(filters);
-  filtersRef.current = filters;
 
   useEffect(() => {
     if (!connection) {
@@ -108,7 +106,7 @@ export function useUsageData(
         from.toISOString(),
         to.toISOString(),
         groupBy,
-        filtersRef.current,
+        filters,
       )
       .then((result: UsageData) => setData(result))
       .catch(() => {});

@@ -387,7 +387,6 @@ public class SqlitePersistence : IPersistence
 
             if (filters.Left.Count > 0)
             {
-                var filterCol = leftColumn;
                 var placeholders = new List<string>();
                 for (var i = 0; i < filters.Left.Count; i++)
                 {
@@ -395,7 +394,7 @@ public class SqlitePersistence : IPersistence
                     placeholders.Add(p);
                     parameters[p] = filters.Left[i];
                 }
-                whereFilters.Add($"{filterCol} IN ({string.Join(", ", placeholders)})");
+                whereFilters.Add($"{leftColumn} IN ({string.Join(", ", placeholders)})");
             }
 
             if (filters.Middle.Count > 0)

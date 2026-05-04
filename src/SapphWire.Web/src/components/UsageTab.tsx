@@ -296,10 +296,8 @@ export default function UsageTab({ connection }: Props) {
 
   return (
     <div className="flex-1 flex flex-col p-4 gap-3">
-      {/* Top bar: pills + period selector + donut */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex flex-col gap-3">
-          {/* Filter pills */}
           <div className="flex gap-2">
             {PILLS.map((p) => (
               <button
@@ -316,7 +314,6 @@ export default function UsageTab({ connection }: Props) {
             ))}
           </div>
 
-          {/* Period selector */}
           <div
             data-testid="period-selector"
             className="flex items-center gap-2"
@@ -353,7 +350,6 @@ export default function UsageTab({ connection }: Props) {
         <DonutChart totalUp={data.totalUp} totalDown={data.totalDown} />
       </div>
 
-      {/* Three columns */}
       <div className="flex-1 flex gap-2 min-h-0">
         <UsageColumn
           testId="column-left"
@@ -387,7 +383,6 @@ export default function UsageTab({ connection }: Props) {
         />
       </div>
 
-      {/* Bottom sparkline */}
       <div className="border-t border-gray-800 pt-2">
         <UsageSparkline data={data.sparkline} />
       </div>
