@@ -7,15 +7,26 @@
     <Nullable>enable</Nullable>
     <RootNamespace>SapphWire.Host</RootNamespace>
     <ApplicationManifest>Properties\app.manifest</ApplicationManifest>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="H.NotifyIcon" Version="2.1.3" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SapphWire.Core\SapphWire.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Embed built Web bundle in release -->
+  <ItemGroup Condition="Exists('..\SapphWire.Web\dist')">
+    <Content Include="..\SapphWire.Web\dist\**" CopyToOutputDirectory="PreserveNewest" LinkBase="wwwroot" />
   </ItemGroup>
 
 </Project>

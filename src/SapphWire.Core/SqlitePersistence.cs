@@ -809,6 +809,44 @@ public class SqlitePersistence : IPersistence
         }
     }
 
+    public async Task ClearDataAsync()
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                DELETE FROM flows_1s;
+                DELETE FROM flows_1h;
+                DELETE FROM flows_1s_by_app;
+                DELETE FROM flows_1h_by_app;
+                DELETE FROM flows_1s_detail;
+                DELETE FROM flows_1h_detail;
+                DELETE FROM alerts;
+                VACUUM;
+                """;
+            await cmd.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public Task<long> GetDatabaseSizeBytesAsync()
+    {
+        var dbPath = GetDatabasePath();
+        if (File.Exists(dbPath))
+            return Task.FromResult(new FileInfo(dbPath).Length);
+        return Task.FromResult(0L);
+    }
+
+    public string GetDatabasePath()
+    {
+        var csb = new SqliteConnectionStringBuilder(_connection.ConnectionString);
+        return csb.DataSource;
+    }
+
     public async ValueTask DisposeAsync()
     {
         _semaphore.Dispose();

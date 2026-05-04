@@ -35,3 +35,23 @@ export interface ScanProgress {
   progress: number;
   lastScanTime: string | null;
 }
+
+export interface AppSettings {
+  autostartEnabled: boolean;
+  toastEnabled: boolean;
+}
+
+export interface SettingsInfo {
+  settings: AppSettings;
+  dbPath: string;
+  dbSizeBytes: number;
+  version: string;
+  buildHash: string;
+  logsPath: string;
+}
+
+export interface AppError {
+  id: string;
+  message: string;
+  timestamp: string;
+}

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.SignalR;
 using SapphWire.Core;
 
@@ -11,6 +12,9 @@ public class DashboardHub : Hub
     private readonly DeviceTracker _deviceTracker;
     private readonly NetworkContext _networkContext;
     private readonly SubnetScanner _scanner;
+    private readonly SettingsManager _settings;
+    private readonly IAutostart _autostart;
+    private readonly INetworkCapture _capture;
 
     public DashboardHub(
         IPersistence persistence,
@@ -18,7 +22,10 @@ public class DashboardHub : Hub
         FlowAggregator aggregator,
         DeviceTracker deviceTracker,
         NetworkContext networkContext,
-        SubnetScanner scanner)
+        SubnetScanner scanner,
+        SettingsManager settings,
+        IAutostart autostart,
+        INetworkCapture capture)
     {
         _persistence = persistence;
         _firewall = firewall;
@@ -26,6 +33,9 @@ public class DashboardHub : Hub
         _deviceTracker = deviceTracker;
         _networkContext = networkContext;
         _scanner = scanner;
+        _settings = settings;
+        _autostart = autostart;
+        _capture = capture;
     }
 
     public async Task SubscribeAlerts()
@@ -202,6 +212,105 @@ public class DashboardHub : Hub
         return Task.CompletedTask;
     }
 
+    // Settings channel
+
+    public async Task SubscribeSettings()
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, "settings");
+
+        var dbSize = await _persistence.GetDatabaseSizeBytesAsync();
+        var snapshot = new
+        {
+            Settings = _settings.Current,
+            DbPath = _persistence.GetDatabasePath(),
+            DbSizeBytes = dbSize,
+            Version = GetVersion(),
+            BuildHash = GetBuildHash(),
+            LogsPath = SettingsManager.GetLogsFolder(),
+        };
+
+        await Clients.Caller.SendAsync("SettingsSnapshot", snapshot);
+    }
+
+    public async Task UnsubscribeSettings()
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, "settings");
+    }
+
+    public async Task SetAutostart(bool enabled)
+    {
+        _settings.Update(s => s with { AutostartEnabled = enabled });
+
+        if (enabled)
+            _autostart.Enable();
+        else
+            _autostart.Disable();
+
+        await Clients.Group("settings").SendAsync("SettingsChanged", _settings.Current);
+    }
+
+    public async Task SetToastEnabled(bool enabled)
+    {
+        _settings.Update(s => s with { ToastEnabled = enabled });
+        await Clients.Group("settings").SendAsync("SettingsChanged", _settings.Current);
+    }
+
+    public async Task ClearData()
+    {
+        await _persistence.ClearDataAsync();
+        var dbSize = await _persistence.GetDatabaseSizeBytesAsync();
+        var snapshot = new
+        {
+            Settings = _settings.Current,
+            DbPath = _persistence.GetDatabasePath(),
+            DbSizeBytes = dbSize,
+            Version = GetVersion(),
+            BuildHash = GetBuildHash(),
+            LogsPath = SettingsManager.GetLogsFolder(),
+        };
+        await Clients.Group("settings").SendAsync("SettingsSnapshot", snapshot);
+    }
+
+    public async Task PauseMonitoring()
+    {
+        _capture.Stop();
+        await Clients.Group("settings").SendAsync("MonitoringStateChanged", true);
+    }
+
+    public async Task ResumeMonitoring()
+    {
+        _capture.Start();
+        await Clients.Group("settings").SendAsync("MonitoringStateChanged", false);
+    }
+
+    public Task OpenDataFolder()
+    {
+        var folder = SettingsManager.GetDataFolder();
+        if (Directory.Exists(folder))
+            Process.Start("explorer.exe", folder);
+        return Task.CompletedTask;
+    }
+
+    public Task ShowLogs()
+    {
+        var folder = SettingsManager.GetLogsFolder();
+        Directory.CreateDirectory(folder);
+        Process.Start("explorer.exe", folder);
+        return Task.CompletedTask;
+    }
+
+    // Errors channel
+
+    public async Task SubscribeErrors()
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, "errors");
+    }
+
+    public async Task UnsubscribeErrors()
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, "errors");
+    }
+
     public override async Task OnConnectedAsync()
     {
         await Clients.Caller.SendAsync("Pong");
@@ -234,5 +343,27 @@ public class DashboardHub : Hub
             });
         }
         catch { }
+    }
+
+    private static string GetVersion()
+    {
+        var asm = typeof(DashboardHub).Assembly;
+        var version = asm.GetName().Version;
+        return version?.ToString(3) ?? "0.0.0";
+    }
+
+    private static string GetBuildHash()
+    {
+        var asm = typeof(DashboardHub).Assembly;
+        var attr = asm.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+            .FirstOrDefault();
+        if (attr?.InformationalVersion is { } info)
+        {
+            var plusIndex = info.IndexOf('+');
+            if (plusIndex >= 0 && plusIndex + 1 < info.Length)
+                return info[(plusIndex + 1)..];
+        }
+        return "dev";
     }
 }
