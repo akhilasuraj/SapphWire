@@ -13,4 +13,11 @@ public interface IPersistence : IAsyncDisposable
     Task SaveBlockedParentAsync(string appId);
     Task RemoveBlockedParentAsync(string appId);
     Task<IReadOnlyList<string>> GetBlockedParentsAsync();
+
+    Task<long> WriteAlertAsync(AlertRecord alert);
+    Task<IReadOnlyList<AlertRecord>> GetAlertsAsync();
+    Task MarkAlertReadAsync(long alertId);
+    Task MarkAllAlertsReadAsync();
+    Task DeleteAlertAsync(long alertId);
+    Task<IReadOnlyList<string>> GetKnownAlertAppsAsync();
 }

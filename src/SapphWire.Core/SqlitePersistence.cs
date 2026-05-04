@@ -413,6 +413,132 @@ public class SqlitePersistence : IPersistence
         }
     }
 
+    public async Task<long> WriteAlertAsync(AlertRecord alert)
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                INSERT INTO alerts (timestamp, app_name, exe_path, remote_ip, remote_port, is_read)
+                VALUES (@ts, @app, @exe, @ip, @port, 0);
+                SELECT last_insert_rowid();
+                """;
+            cmd.Parameters.AddWithValue("@ts", alert.Timestamp.ToUnixTimeMilliseconds());
+            cmd.Parameters.AddWithValue("@app", alert.AppName);
+            cmd.Parameters.AddWithValue("@exe", (object?)alert.ExePath ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@ip", (object?)alert.RemoteIp ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("@port", (object?)alert.RemotePort ?? DBNull.Value);
+
+            var result = await cmd.ExecuteScalarAsync();
+            return (long)result!;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<AlertRecord>> GetAlertsAsync()
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = """
+                SELECT id, timestamp, app_name, exe_path, remote_ip, remote_port, is_read
+                FROM alerts
+                ORDER BY timestamp DESC;
+                """;
+
+            var results = new List<AlertRecord>();
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                results.Add(new AlertRecord(
+                    Id: reader.GetInt64(0),
+                    Timestamp: DateTimeOffset.FromUnixTimeMilliseconds(reader.GetInt64(1)),
+                    AppName: reader.GetString(2),
+                    ExePath: reader.IsDBNull(3) ? null : reader.GetString(3),
+                    RemoteIp: reader.IsDBNull(4) ? null : reader.GetString(4),
+                    RemotePort: reader.IsDBNull(5) ? null : reader.GetInt32(5),
+                    IsRead: reader.GetInt64(6) != 0
+                ));
+            }
+            return results;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task MarkAlertReadAsync(long alertId)
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "UPDATE alerts SET is_read = 1 WHERE id = @id;";
+            cmd.Parameters.AddWithValue("@id", alertId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task MarkAllAlertsReadAsync()
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "UPDATE alerts SET is_read = 1 WHERE is_read = 0;";
+            await cmd.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task DeleteAlertAsync(long alertId)
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM alerts WHERE id = @id;";
+            cmd.Parameters.AddWithValue("@id", alertId);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> GetKnownAlertAppsAsync()
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "SELECT DISTINCT app_name FROM alerts;";
+            var results = new List<string>();
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                results.Add(reader.GetString(0));
+            return results;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         _semaphore.Dispose();

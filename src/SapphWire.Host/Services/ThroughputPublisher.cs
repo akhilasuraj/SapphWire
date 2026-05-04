@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
 using SapphWire.Core;
 using SapphWire.Host.Hubs;
 
@@ -14,10 +15,13 @@ public class ThroughputPublisher : BackgroundService
     private readonly IDnsResolver _dnsResolver;
     private readonly IGeoIp _geoIp;
     private readonly IFirewall _firewall;
+    private readonly IToastNotifier _toastNotifier;
+    private readonly ILogger<ThroughputPublisher> _logger;
 
     private readonly ConcurrentDictionary<string, LinkedList<long>> _sparkBuffers = new();
     private readonly HashSet<string> _knownExePaths = new(StringComparer.OrdinalIgnoreCase);
     private HashSet<string>? _blockedParents;
+    private AlertEngine? _alertEngine;
     private const int SparkMaxPoints = 60;
 
     public ThroughputPublisher(
@@ -27,7 +31,9 @@ public class ThroughputPublisher : BackgroundService
         IProcessResolver processResolver,
         IDnsResolver dnsResolver,
         IGeoIp geoIp,
-        IFirewall firewall)
+        IFirewall firewall,
+        IToastNotifier toastNotifier,
+        ILogger<ThroughputPublisher> logger)
     {
         _aggregator = aggregator;
         _hub = hub;
@@ -36,10 +42,15 @@ public class ThroughputPublisher : BackgroundService
         _dnsResolver = dnsResolver;
         _geoIp = geoIp;
         _firewall = firewall;
+        _toastNotifier = toastNotifier;
+        _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var knownApps = await _persistence.GetKnownAlertAppsAsync();
+        _alertEngine = new AlertEngine(knownApps);
+
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
@@ -100,7 +111,42 @@ public class ThroughputPublisher : BackgroundService
                 {
                     // Best-effort
                 }
+
+                try
+                {
+                    await EvaluateAlerts(perFlow, bucket.Timestamp, stoppingToken);
+                }
+                catch
+                {
+                    // Best-effort
+                }
             }
+        }
+    }
+
+    private async Task EvaluateAlerts(
+        Dictionary<FlowKey, (long Up, long Down)> perFlow,
+        DateTimeOffset timestamp,
+        CancellationToken ct)
+    {
+        if (_alertEngine == null) return;
+
+        foreach (var flowKey in perFlow.Keys)
+        {
+            var info = _processResolver.Resolve(flowKey.Pid);
+            var alert = _alertEngine.Evaluate(flowKey, info, timestamp);
+            if (alert == null) continue;
+
+            var id = await _persistence.WriteAlertAsync(alert);
+            var saved = alert with { Id = id };
+
+            await _hub.Clients.Group("alerts")
+                .SendAsync("NewAlert", saved, ct);
+
+            _toastNotifier.ShowAlert(saved);
+
+            _logger.LogInformation("Alert: first network activity for {App} → {Ip}:{Port}",
+                saved.AppName, saved.RemoteIp, saved.RemotePort);
         }
     }
 

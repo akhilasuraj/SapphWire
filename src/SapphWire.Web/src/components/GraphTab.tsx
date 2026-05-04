@@ -11,6 +11,7 @@ import {
 
 interface Props {
   connection: HubConnection | null;
+  alertTimestamps?: string[];
 }
 
 const TIME_PILLS: TimePill[] = [
@@ -39,7 +40,7 @@ const SERIES_COLORS = [
   "#6b7280",
 ];
 
-const ALERT_MARKER_TIMESTAMPS = [
+const FALLBACK_ALERT_TIMESTAMPS = [
   "2024-01-01T00:01:00Z",
   "2024-01-01T00:03:00Z",
 ];
@@ -77,7 +78,7 @@ function extractSeriesNames(data: GraphPoint[]): string[] {
   return Array.from(nameSet);
 }
 
-export default function GraphTab({ connection }: Props) {
+export default function GraphTab({ connection, alertTimestamps }: Props) {
   const [timePill, setTimePill] = useState<TimePill>("5 Minutes");
   const [filterPill, setFilterPill] = useState<FilterPill>("All");
   const [yAxisScale, setYAxisScale] = useState<YAxisScale>("Auto");
@@ -123,7 +124,10 @@ export default function GraphTab({ connection }: Props) {
                 silent: true,
                 symbol: ["none", "none"],
                 lineStyle: { color: "#f59e0b", type: "dashed" as const },
-                data: ALERT_MARKER_TIMESTAMPS.map((ts) => ({
+                data: (alertTimestamps && alertTimestamps.length > 0
+                  ? alertTimestamps
+                  : FALLBACK_ALERT_TIMESTAMPS
+                ).map((ts) => ({
                   xAxis: ts,
                   label: { show: false },
                 })),

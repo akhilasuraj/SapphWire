@@ -14,6 +14,39 @@ public class DashboardHub : Hub
         _firewall = firewall;
     }
 
+    public async Task SubscribeAlerts()
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, "alerts");
+        var alerts = await _persistence.GetAlertsAsync();
+        await Clients.Caller.SendAsync("AlertsSnapshot", alerts);
+    }
+
+    public async Task UnsubscribeAlerts()
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, "alerts");
+    }
+
+    public async Task MarkAlertRead(long alertId)
+    {
+        await _persistence.MarkAlertReadAsync(alertId);
+    }
+
+    public async Task MarkAllAlertsRead()
+    {
+        await _persistence.MarkAllAlertsReadAsync();
+    }
+
+    public async Task DeleteAlert(long alertId)
+    {
+        await _persistence.DeleteAlertAsync(alertId);
+    }
+
+    public async Task<IReadOnlyList<string>> GetAlertTimestamps()
+    {
+        var alerts = await _persistence.GetAlertsAsync();
+        return alerts.Select(a => a.Timestamp.ToString("o")).ToList();
+    }
+
     public async Task Ping()
     {
         await Clients.Caller.SendAsync("Pong");

@@ -21,6 +21,7 @@ builder.Services.AddSingleton<IPersistence>(
     _ => new SqlitePersistence(SqlitePersistence.GetDefaultConnectionString()));
 builder.Services.AddSingleton<IFirewall, WindowsFirewall>();
 builder.Services.AddSingleton<IInstalledAppsProvider, WindowsInstalledAppsProvider>();
+builder.Services.AddSingleton<IToastNotifier, WindowsToastNotifier>();
 builder.Services.AddHostedService<CaptureHostedService>();
 builder.Services.AddHostedService<ThroughputPublisher>();
 builder.Services.AddHostedService<RollupService>();
@@ -114,6 +115,27 @@ app.MapPost("/api/firewall/unblock", async (
 
 app.MapGet("/api/firewall/installed-apps", (IInstalledAppsProvider provider) =>
     provider.GetInstalledApps());
+
+app.MapGet("/api/alerts", async (IPersistence persistence) =>
+    await persistence.GetAlertsAsync());
+
+app.MapPost("/api/alerts/{id}/read", async (long id, IPersistence persistence) =>
+{
+    await persistence.MarkAlertReadAsync(id);
+    return Results.Ok();
+});
+
+app.MapPost("/api/alerts/read-all", async (IPersistence persistence) =>
+{
+    await persistence.MarkAllAlertsReadAsync();
+    return Results.Ok();
+});
+
+app.MapDelete("/api/alerts/{id}", async (long id, IPersistence persistence) =>
+{
+    await persistence.DeleteAlertAsync(id);
+    return Results.Ok();
+});
 
 app.Lifetime.ApplicationStarted.Register(() =>
 {
