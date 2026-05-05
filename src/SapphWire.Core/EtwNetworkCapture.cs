@@ -86,8 +86,14 @@ public class EtwNetworkCapture : INetworkCapture
     private void Emit(DateTime ts, int pid, TrafficDirection dir, int bytes,
         string remoteIp, int remotePort, string proto)
     {
+        var utc = ts.Kind switch
+        {
+            DateTimeKind.Utc => ts,
+            DateTimeKind.Local => ts.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(ts, DateTimeKind.Local).ToUniversalTime(),
+        };
         OnEvent?.Invoke(new NetworkEvent(
-            new DateTimeOffset(ts, TimeSpan.Zero),
+            new DateTimeOffset(utc, TimeSpan.Zero),
             pid, dir, bytes, remoteIp, remotePort, proto));
     }
 
