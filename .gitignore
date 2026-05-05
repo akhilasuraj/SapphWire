@@ -18,3 +18,4 @@ src/SapphWire.Web/node_modules/
 .idea/
 .vscode/
 *.swp
+out/
