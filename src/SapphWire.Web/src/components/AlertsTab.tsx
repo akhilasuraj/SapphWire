@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 import { useAlerts, type AlertRecord } from "../useAlerts";
 import { useFirewall } from "../useFirewall";
+import { Sticker } from "./ui/Sticker";
+import { AlertGlyph, WarningTriangle, ChevronDown } from "./ui/icons";
 
 interface Props {
   connection: HubConnection | null;
@@ -58,96 +60,117 @@ function AlertRow({
       <div
         data-testid={`alert-row-${alert.id}`}
         onClick={onToggle}
-        className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-gray-800/50 hover:bg-gray-800/30 ${
-          !alert.isRead ? "bg-gray-800/20" : ""
-        }`}
+        className="row"
+        style={{
+          cursor: "pointer",
+          background: !alert.isRead ? "var(--cream-2)" : "var(--paper)",
+        }}
       >
-        <div className="flex-shrink-0 w-6 text-center">
-          <svg className="w-5 h-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
-            <path
-              fillRule="evenodd"
-              d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-200">
-              {alert.appName}
+        <div style={{ position: "relative" }}>
+          <Sticker color="butter" size="md" glyph={AlertGlyph} />
+          {!alert.isRead && (
+            <span
+              className="sticker-tag"
+              style={{
+                position: "absolute",
+                top: -8,
+                left: -10,
+                background: "var(--mint-deep)",
+                fontSize: 8,
+                padding: "2px 6px",
+                transform: "rotate(-10deg)",
+              }}
+            >
+              NEW
             </span>
-            {!alert.isRead && (
-              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-600 text-white rounded">
-                NEW
-              </span>
-            )}
-          </div>
-          <div className="text-xs text-gray-500">
+          )}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="row-name">{alert.appName}</div>
+          <div
+            className="row-sub mono"
+            style={{ fontSize: 11, marginTop: 2 }}
+          >
             {alert.remoteIp && alert.remotePort
               ? `→ ${alert.remoteIp}:${alert.remotePort}`
               : "First network activity"}
           </div>
         </div>
-
-        <span className="text-xs text-gray-500 flex-shrink-0">
+        <span className="mono row-sub" style={{ fontSize: 11 }}>
           {formatTime(alert.timestamp)}
         </span>
-
-        <svg
-          className={`w-4 h-4 text-gray-500 transition-transform flex-shrink-0 ${isExpanded ? "rotate-180" : ""}`}
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-            clipRule="evenodd"
-          />
-        </svg>
+        {ChevronDown(isExpanded)}
       </div>
 
       {isExpanded && (
-        <div className="bg-gray-900/50 border-b border-gray-800/50 px-8 py-3 space-y-2">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div>
-              <span className="text-gray-500">Destination IP:</span>{" "}
-              <span className="text-gray-300">{alert.remoteIp}</span>
-            </div>
-            <div>
-              <span className="text-gray-500">Port:</span>{" "}
-              <span className="text-gray-300">{alert.remotePort}</span>
-            </div>
+        <div
+          className="card-tight"
+          style={{
+            marginTop: -4,
+            background: "var(--cream)",
+            marginBottom: 10,
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "auto 1fr auto 1fr",
+              gap: "6px 14px",
+              fontSize: 12,
+            }}
+          >
+            <span className="row-sub">Destination IP</span>
+            <span className="mono">{alert.remoteIp ?? "—"}</span>
+            <span className="row-sub">Port</span>
+            <span className="mono">
+              {alert.remotePort != null ? alert.remotePort : "—"}
+            </span>
             {alert.exePath && (
-              <div className="col-span-2">
-                <span className="text-gray-500">Exe path:</span>{" "}
-                <span className="text-gray-300">{alert.exePath}</span>
-              </div>
+              <>
+                <span className="row-sub">Exe</span>
+                <span
+                  className="mono"
+                  style={{ gridColumn: "2 / span 3", wordBreak: "break-all" }}
+                >
+                  {alert.exePath}
+                </span>
+              </>
             )}
           </div>
-          <div className="flex items-center gap-3 pt-2">
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              marginTop: 12,
+              flexWrap: "wrap",
+            }}
+          >
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 onBlock();
               }}
-              className="text-xs text-red-400 hover:text-red-300 font-medium"
+              className="pill"
+              style={{ background: "var(--coral)" }}
             >
               Block this app
             </button>
             <button
               onClick={(e) => e.stopPropagation()}
-              className="text-xs text-blue-400 hover:text-blue-300 font-medium"
+              className="pill"
+              style={{ background: "var(--sky)" }}
             >
               Show in Firewall tab
             </button>
+            <div style={{ flex: 1 }} />
             <button
               data-testid={`delete-alert-${alert.id}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete();
               }}
-              className="text-xs text-gray-500 hover:text-red-400 ml-auto"
+              className="pill"
+              style={{ background: "var(--paper)" }}
             >
               Delete
             </button>
@@ -175,26 +198,40 @@ export default function AlertsTab({ connection }: Props) {
     }
   };
 
-  const grouped = alerts.reduce<Record<string, AlertRecord[]>>((acc, alert) => {
-    const group = getDateGroup(alert.timestamp);
-    if (!acc[group]) acc[group] = [];
-    acc[group].push(alert);
-    return acc;
-  }, {});
+  const grouped = alerts.reduce<Record<string, AlertRecord[]>>(
+    (acc, alert) => {
+      const group = getDateGroup(alert.timestamp);
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(alert);
+      return acc;
+    },
+    {},
+  );
+
+  const totalToday = grouped["Today"]?.length ?? 0;
+  const totalYesterday = grouped["Yesterday"]?.length ?? 0;
 
   return (
-    <div className="flex-1 flex flex-col p-4">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-2">
+    <div className="page-fade">
+      <div className="section-head">
+        <h1 className="section-title">Alerts</h1>
+        {alerts.length > 0 && (
+          <span className="sticker-tag" style={{ background: "var(--pink)" }}>
+            {alerts.length} total
+          </span>
+        )}
+        <div style={{ flex: 1 }} />
+        <div className="pill-row">
           {ALERT_PILLS.map((pill) => (
             <button
               key={pill}
               onClick={() => setActivePill(pill)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+              className={`pill ${pill === activePill ? "active" : ""}`}
+              style={
                 pill === activePill
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:text-gray-200"
-              }`}
+                  ? ({ "--p-active": "var(--sky)" } as React.CSSProperties)
+                  : undefined
+              }
             >
               {pill}
             </button>
@@ -202,36 +239,114 @@ export default function AlertsTab({ connection }: Props) {
         </div>
         <button
           onClick={() => markAllRead()}
-          className="px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-800 rounded-full hover:text-gray-200"
+          className="pill"
+          style={{ background: "var(--peach)" }}
         >
           Mark all read
         </button>
       </div>
 
       {alerts.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center">
-          <p className="text-sm text-gray-600">No alerts yet</p>
+        <div className="card" style={{ textAlign: "center", padding: 60 }}>
+          <p className="row-sub">No alerts yet</p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto">
-          {Object.entries(grouped).map(([dateGroup, groupAlerts]) => (
-            <div key={dateGroup} className="mb-4">
-              <h3 className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                {dateGroup}
-              </h3>
-              {groupAlerts.map((alert) => (
-                <AlertRow
-                  key={alert.id}
-                  alert={alert}
-                  isExpanded={expandedId === alert.id}
-                  onToggle={() => handleToggle(alert)}
-                  onBlock={() => blockApp(alert.appName)}
-                  onDelete={() => deleteAlert(alert.id)}
+        <>
+          <div className="card" style={{ marginBottom: 18, padding: "14px 18px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 14,
+              }}
+            >
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <Sticker
+                  color="butter"
+                  size="lg"
+                  rotate={-3}
+                  glyph={WarningTriangle}
                 />
-              ))}
+                <div>
+                  <div
+                    style={{
+                      fontFamily: "Fredoka",
+                      fontSize: 20,
+                      fontWeight: 600,
+                    }}
+                  >
+                    Stay watchful
+                  </div>
+                  <div className="row-sub">
+                    {alerts.length} first-time connections · 0 marked malicious
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <span className="chip" style={{ background: "var(--mint)" }}>
+                  {totalToday} Today
+                </span>
+                <span
+                  className="chip"
+                  style={{ background: "var(--lavender)" }}
+                >
+                  {totalYesterday} Yesterday
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {Object.entries(grouped).map(([dateGroup, groupAlerts], gi) => (
+            <div key={dateGroup} style={{ marginBottom: 24 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  marginBottom: 12,
+                }}
+              >
+                <span
+                  className="sticker-tag"
+                  style={{
+                    background:
+                      gi === 0 ? "var(--mint)" : "var(--lavender)",
+                    transform: "rotate(-2deg)",
+                    fontSize: 12,
+                  }}
+                >
+                  {dateGroup}
+                </span>
+                <div
+                  style={{
+                    flex: 1,
+                    height: 0,
+                    borderTop: "2.5px dashed var(--ink-mute)",
+                  }}
+                />
+                <span className="row-sub mono">
+                  {groupAlerts.length} events
+                </span>
+              </div>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 10 }}
+              >
+                {groupAlerts.map((alert) => (
+                  <AlertRow
+                    key={alert.id}
+                    alert={alert}
+                    isExpanded={expandedId === alert.id}
+                    onToggle={() => handleToggle(alert)}
+                    onBlock={() => blockApp(alert.appName)}
+                    onDelete={() => deleteAlert(alert.id)}
+                  />
+                ))}
+              </div>
             </div>
           ))}
-        </div>
+        </>
       )}
     </div>
   );

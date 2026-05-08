@@ -436,7 +436,7 @@ describe("FirewallTab", () => {
     render(<FirewallTab connection={null} />);
 
     const flame = screen.getByTestId("flame-toggle-Chrome");
-    expect(flame.className).toContain("text-orange");
+    expect(flame.style.background).toContain("--coral");
   });
 
   it("unblocked app shows unlit (gray) flame", () => {
@@ -452,7 +452,7 @@ describe("FirewallTab", () => {
     render(<FirewallTab connection={null} />);
 
     const flame = screen.getByTestId("flame-toggle-Chrome");
-    expect(flame.className).toContain("text-gray");
+    expect(flame.style.color).toContain("--ink-mute");
   });
 
   it("Blocked Apps section shows count of blocked apps", () => {

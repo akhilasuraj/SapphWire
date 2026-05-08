@@ -134,13 +134,6 @@ describe("ThingsTab", () => {
     expect(btn).toBeDisabled();
   });
 
-  it("renders three column headers: Device, Details, Last Seen", () => {
-    render(<ThingsTab connection={null} />);
-    expect(screen.getByText("Device")).toBeInTheDocument();
-    expect(screen.getByText("Details")).toBeInTheDocument();
-    expect(screen.getByText("Last Seen")).toBeInTheDocument();
-  });
-
   it("renders device rows with IP and MAC in details", () => {
     const device = makeDevice({ ip: "192.168.1.42", mac: "AA:BB:CC:DD:EE:FF", vendor: "Acme" });
     mockUseThings.mockReturnValue(defaultThingsState({ devices: [device] }));

@@ -36,8 +36,8 @@ describe("TopBar", () => {
         onSettingsClick={() => {}}
       />,
     );
-    const graphButton = screen.getByText("Graph");
-    expect(graphButton).toHaveClass("border-blue-500");
+    const graphButton = screen.getByText("Graph").closest("button");
+    expect(graphButton).toHaveClass("active");
   });
 
   it("calls onTabChange when a tab is clicked", () => {

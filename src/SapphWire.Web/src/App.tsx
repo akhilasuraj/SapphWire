@@ -10,6 +10,7 @@ import AlertsTab from "./components/AlertsTab";
 import ThingsTab from "./components/ThingsTab";
 import { useSignalR } from "./useSignalR";
 import { useErrors } from "./useErrors";
+import { useAlerts } from "./useAlerts";
 
 export type TabName = "Graph" | "Usage" | "Things" | "Firewall" | "Alerts";
 
@@ -22,6 +23,7 @@ export default function App() {
 
   const connectedConnection = status === "connected" ? connection : null;
   const { errors, dismiss } = useErrors(connectedConnection);
+  const { unreadCount } = useAlerts(connectedConnection);
 
   function renderTab() {
     switch (activeTab) {
@@ -40,24 +42,25 @@ export default function App() {
             onNavigateToAlert={() => {}}
           />
         );
-      default:
-        return (
-          <div className="flex-1 flex items-center justify-center">
-            <ConnectionStatus status={status} />
-          </div>
-        );
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
+    <div className="app">
       <TopBar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onSettingsClick={() => setShowSettings(true)}
+        connectionStatus={status}
+        alertsCount={unreadCount}
       />
       <ErrorBanner errors={errors} onDismiss={dismiss} />
-      <main className="flex-1 flex flex-col">{renderTab()}</main>
+      <main key={activeTab}>{renderTab()}</main>
+      {status !== "connected" && (
+        <div style={{ marginTop: 16 }}>
+          <ConnectionStatus status={status} />
+        </div>
+      )}
       {showSettings && (
         <SettingsPanel
           connection={connectedConnection}

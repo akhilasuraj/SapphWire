@@ -9,6 +9,7 @@ import {
   type GraphPoint,
 } from "../useGraphData";
 import { useAlerts } from "../useAlerts";
+import { SearchIcon } from "./ui/icons";
 
 interface Props {
   connection: HubConnection | null;
@@ -32,12 +33,12 @@ const Y_AXIS_OPTIONS: YAxisScale[] = [
 ];
 
 const SERIES_COLORS = [
-  "#3b82f6",
-  "#10b981",
-  "#f59e0b",
-  "#ef4444",
-  "#8b5cf6",
-  "#6b7280",
+  "#FFCDA8",
+  "#FFE69A",
+  "#FFC2D1",
+  "#BCDFFB",
+  "#D6C7FF",
+  "#B7E8CF",
 ];
 
 const FALLBACK_ALERT_TIMESTAMPS = [
@@ -109,42 +110,45 @@ export default function GraphTab({ connection }: Props) {
     const timestamps = data.map((d) => d.timestamp);
     const maxY = yAxisMax(yAxisScale);
 
-    const series = seriesNames.map(
-      (name, i) => ({
-        name,
-        type: "line",
-        stack: "total",
-        areaStyle: { opacity: 0.4 },
-        lineStyle: { width: 1 },
-        symbol: "none",
-        data: data.map((d) => d.values[name] ?? 0),
-        color: SERIES_COLORS[i % SERIES_COLORS.length],
-        markLine:
-          i === 0
-            ? {
-                silent: true,
-                symbol: ["none", "none"],
-                lineStyle: { color: "#f59e0b", type: "dashed" as const },
-                data: (alertTimestamps && alertTimestamps.length > 0
-                  ? alertTimestamps
-                  : FALLBACK_ALERT_TIMESTAMPS
-                ).map((ts) => ({
-                  xAxis: ts,
-                  label: { show: false },
-                })),
-              }
-            : undefined,
-      }),
-    );
+    const series = seriesNames.map((name, i) => ({
+      name,
+      type: "line",
+      stack: "total",
+      areaStyle: { opacity: 0.85 },
+      lineStyle: { width: 2.2, color: "#2E2A4A" },
+      symbol: "none",
+      data: data.map((d) => d.values[name] ?? 0),
+      color: SERIES_COLORS[i % SERIES_COLORS.length],
+      markLine:
+        i === 0
+          ? {
+              silent: true,
+              symbol: ["none", "none"],
+              lineStyle: { color: "#F07A66", type: "dashed" as const, width: 2 },
+              data: (alertTimestamps && alertTimestamps.length > 0
+                ? alertTimestamps
+                : FALLBACK_ALERT_TIMESTAMPS
+              ).map((ts) => ({
+                xAxis: ts,
+                label: { show: false },
+              })),
+            }
+          : undefined,
+    }));
 
     instanceRef.current.setOption(
       {
         animation: false,
         tooltip: {
           trigger: "axis",
-          backgroundColor: "rgba(17,24,39,0.95)",
-          borderColor: "#374151",
-          textStyle: { color: "#e5e7eb" },
+          backgroundColor: "#FFFCF5",
+          borderColor: "#2E2A4A",
+          borderWidth: 2,
+          textStyle: {
+            color: "#2E2A4A",
+            fontFamily: "Nunito",
+            fontWeight: 600,
+          },
           formatter: (
             params: Array<{
               seriesName: string;
@@ -166,7 +170,7 @@ export default function GraphTab({ connection }: Props) {
           seriesNames.length > 1
             ? {
                 data: seriesNames,
-                textStyle: { color: "#9ca3af" },
+                textStyle: { color: "#2E2A4A", fontFamily: "Nunito" },
                 top: 0,
               }
             : undefined,
@@ -181,9 +185,10 @@ export default function GraphTab({ connection }: Props) {
           data: timestamps,
           axisLabel: {
             formatter: (val: string) => new Date(val).toLocaleTimeString(),
-            color: "#9ca3af",
+            color: "#4A4670",
+            fontFamily: "JetBrains Mono",
           },
-          axisLine: { lineStyle: { color: "#374151" } },
+          axisLine: { lineStyle: { color: "#2E2A4A", width: 2 } },
           splitLine: { show: false },
         },
         yAxis: {
@@ -191,10 +196,17 @@ export default function GraphTab({ connection }: Props) {
           max: maxY,
           axisLabel: {
             formatter: (val: number) => formatRate(val),
-            color: "#9ca3af",
+            color: "#4A4670",
+            fontFamily: "JetBrains Mono",
           },
           axisLine: { show: false },
-          splitLine: { lineStyle: { color: "#1f2937" } },
+          splitLine: {
+            lineStyle: {
+              color: "#2E2A4A",
+              type: "dashed",
+              opacity: 0.18,
+            },
+          },
         },
         dataZoom: [
           {
@@ -206,16 +218,16 @@ export default function GraphTab({ connection }: Props) {
             type: "slider",
             start: 0,
             end: 100,
-            height: 30,
-            bottom: 10,
-            borderColor: "#374151",
-            backgroundColor: "#111827",
-            fillerColor: "rgba(59,130,246,0.15)",
-            handleStyle: { color: "#3b82f6" },
-            textStyle: { color: "#9ca3af" },
+            height: 24,
+            bottom: 14,
+            borderColor: "#2E2A4A",
+            backgroundColor: "#FDF5E6",
+            fillerColor: "rgba(167,147,240,0.25)",
+            handleStyle: { color: "#A793F0", borderColor: "#2E2A4A" },
+            textStyle: { color: "#4A4670" },
             dataBackground: {
-              lineStyle: { color: "#374151" },
-              areaStyle: { color: "#1f2937" },
+              lineStyle: { color: "#8782AA" },
+              areaStyle: { color: "#FDF5E6" },
             },
           },
         ],
@@ -223,7 +235,7 @@ export default function GraphTab({ connection }: Props) {
       },
       true,
     );
-  }, [data, yAxisScale]);
+  }, [data, yAxisScale, alertTimestamps]);
 
   const latest = data.length > 0 ? data[data.length - 1] : undefined;
   const latestTotal = latest
@@ -231,61 +243,143 @@ export default function GraphTab({ connection }: Props) {
     : 0;
 
   return (
-    <div className="flex-1 flex flex-col p-4 gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          {TIME_PILLS.map((pill) => (
-            <button
-              key={pill}
-              onClick={() => setTimePill(pill)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                pill === timePill
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:text-gray-200"
-              }`}
-            >
-              {pill}
-            </button>
-          ))}
+    <div className="page-fade">
+      <div className="section-head">
+        <h1 className="section-title">Live Throughput</h1>
+        <span className="sticker-tag">Live</span>
+        <div style={{ flex: 1 }} />
+        <div className="cart-search">
+          {SearchIcon}
+          <input placeholder="Find an app or host…" />
         </div>
-        <div className="flex items-center gap-4">
-          <div className="flex gap-2">
-            {FILTER_PILLS.map((pill) => (
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 12,
+            marginBottom: 14,
+          }}
+        >
+          <div className="pill-row">
+            {FILTER_PILLS.map((p) => (
               <button
-                key={pill}
-                onClick={() => setFilterPill(pill)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                  pill === filterPill
-                    ? "bg-gray-600 text-white"
-                    : "bg-gray-800 text-gray-400 hover:text-gray-200"
-                }`}
+                key={p}
+                onClick={() => setFilterPill(p)}
+                className={`pill ${p === filterPill ? "active" : ""}`}
+                style={
+                  p === filterPill
+                    ? ({ "--p-active": "var(--lavender)" } as React.CSSProperties)
+                    : undefined
+                }
               >
-                {pill}
+                {p}
               </button>
             ))}
           </div>
-          <select
-            data-testid="y-axis-scale"
-            value={yAxisScale}
-            onChange={(e) => setYAxisScale(e.target.value as YAxisScale)}
-            className="bg-gray-800 text-gray-300 text-xs rounded px-2 py-1.5 border border-gray-700"
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
           >
-            {Y_AXIS_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-          <span data-testid="throughput-total" className="text-blue-400 text-sm">
-            {formatRate(latestTotal)}
-          </span>
+            <select
+              data-testid="y-axis-scale"
+              value={yAxisScale}
+              onChange={(e) => setYAxisScale(e.target.value as YAxisScale)}
+              className="cart-select"
+            >
+              {Y_AXIS_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+            <div className="pill-row">
+              {TIME_PILLS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setTimePill(p)}
+                  className={`pill ${p === timePill ? "active" : ""}`}
+                  style={
+                    p === timePill
+                      ? ({ "--p-active": "var(--peach)" } as React.CSSProperties)
+                      : undefined
+                  }
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div
+          ref={chartRef}
+          data-testid="graph-chart"
+          style={{
+            width: "100%",
+            minHeight: 420,
+            border: "2.5px solid var(--ink)",
+            borderRadius: 14,
+            background: "var(--paper)",
+            backgroundImage:
+              "radial-gradient(circle at 10px 10px, rgba(46,42,74,0.07) 1.2px, transparent 1.6px)",
+            backgroundSize: "20px 20px",
+          }}
+        />
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: 14,
+            paddingTop: 12,
+            borderTop: "2.5px dashed var(--ink-mute)",
+            flexWrap: "wrap",
+            gap: 12,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <span className="chip" style={{ background: "var(--coral)" }}>
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  background: "var(--coral-deep)",
+                  borderRadius: "50%",
+                  border: "2px solid var(--ink)",
+                }}
+              />
+              Alert markers
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span className="row-sub">Now</span>
+            <span
+              data-testid="throughput-total"
+              className="chip mono"
+              style={{ background: "var(--mint)", fontSize: 13, padding: "4px 12px" }}
+            >
+              {formatRate(latestTotal)}
+            </span>
+          </div>
         </div>
       </div>
-      <div
-        ref={chartRef}
-        data-testid="graph-chart"
-        className="flex-1 min-h-[400px]"
-      />
     </div>
   );
 }

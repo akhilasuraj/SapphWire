@@ -1,60 +1,97 @@
 import type { TabName } from "../App";
+import type { ConnectionStatus as Status } from "../useSignalR";
+import { Sticker, type StickerColor } from "./ui/Sticker";
+import { TabIcon, SettingsGlyph } from "./ui/icons";
 
 const TABS: TabName[] = ["Graph", "Usage", "Things", "Firewall", "Alerts"];
+
+const TAB_COLORS: Record<TabName, StickerColor> = {
+  Graph: "sky",
+  Usage: "peach",
+  Things: "mint",
+  Firewall: "pink",
+  Alerts: "lavender",
+};
 
 interface Props {
   activeTab: TabName;
   onTabChange: (tab: TabName) => void;
   onSettingsClick: () => void;
+  connectionStatus?: Status;
+  alertsCount?: number;
 }
 
 export default function TopBar({
   activeTab,
   onTabChange,
   onSettingsClick,
+  alertsCount = 0,
 }: Props) {
   return (
-    <header className="flex items-center border-b border-gray-800 bg-gray-900 px-4">
-      <span className="text-lg font-semibold mr-8 py-3">SapphWire</span>
-      <nav className="flex gap-1 flex-1">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => onTabChange(tab)}
-            className={`px-4 py-3 text-sm font-medium transition-colors ${
-              tab === activeTab
-                ? "text-gray-100 border-b-2 border-blue-500"
-                : "text-gray-400 hover:text-gray-100"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+    <header className="topbar">
+      <div className="brand">
+        <div className="brand-mark">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 3 L19 8 L19 16 L12 21 L5 16 L5 8 Z"
+              stroke="#2E2A4A"
+              strokeWidth="2.4"
+              fill="var(--paper)"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M9 11 L12 9 L15 11 L15 14 L12 16 L9 14 Z"
+              stroke="#2E2A4A"
+              strokeWidth="2"
+              fill="var(--pink)"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+        SapphWire
+      </div>
+      <nav className="tabs">
+        {TABS.map((t) => {
+          const isActive = t === activeTab;
+          const accent = `var(--${TAB_COLORS[t]})`;
+          return (
+            <button
+              key={t}
+              onClick={() => onTabChange(t)}
+              className={`tab-btn ${isActive ? "active" : ""}`}
+              style={
+                isActive
+                  ? ({ "--accent": accent } as React.CSSProperties)
+                  : undefined
+              }
+            >
+              {TabIcon[t]}
+              <span>{t}</span>
+              {t === "Alerts" && alertsCount > 0 && (
+                <span className="badge">{alertsCount}</span>
+              )}
+            </button>
+          );
+        })}
       </nav>
+      <Sticker
+        color="butter"
+        size="sm"
+        rotate={-3}
+        glyph={
+          <span style={{ fontSize: 14, fontFamily: "Fredoka", fontWeight: 700 }}>
+            ★
+          </span>
+        }
+        style={{ width: 32, height: 32 }}
+      />
       <button
         onClick={onSettingsClick}
         aria-label="Settings"
-        className="p-2 text-gray-400 hover:text-gray-100 transition-colors"
+        className="icon-btn"
+        title="Settings"
       >
-        <svg
-          className="w-5 h-5"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-          />
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-          />
-        </svg>
+        {SettingsGlyph}
       </button>
     </header>
   );

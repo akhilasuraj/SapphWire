@@ -2,6 +2,14 @@ import { useState, useEffect } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 import { useThings } from "../useThings";
 import type { Device } from "../types";
+import { Sticker, colorFromString } from "./ui/Sticker";
+import {
+  PcIcon,
+  GatewayIcon,
+  PhoneIcon,
+  WifiIcon,
+  PlusIcon,
+} from "./ui/icons";
 
 interface Props {
   connection: HubConnection | null;
@@ -29,11 +37,22 @@ function sortDevices(devices: Device[]): Device[] {
   });
 }
 
-function deviceIcon(device: Device): string {
-  if (device.isThisPc) return "💻";
-  if (device.isGateway) return "🌐";
-  return "📱";
+function deviceGlyph(device: Device) {
+  if (device.isThisPc) return PcIcon;
+  if (device.isGateway) return GatewayIcon;
+  return PhoneIcon;
 }
+
+const menuItemStyle: React.CSSProperties = {
+  width: "100%",
+  textAlign: "left",
+  background: "var(--paper)",
+  boxShadow: "none",
+  border: "none",
+  padding: "8px 12px",
+  fontSize: 13,
+  borderRadius: 8,
+};
 
 export default function ThingsTab({ connection }: Props) {
   const state = useThings(connection);
@@ -57,7 +76,8 @@ export default function ThingsTab({ connection }: Props) {
     device: Device;
   } | null>(null);
   const activeCount = devices.filter((d) => d.online).length;
-  const filtered = filter === "active" ? devices.filter((d) => d.online) : devices;
+  const filtered =
+    filter === "active" ? devices.filter((d) => d.online) : devices;
   const sorted = sortDevices(filtered);
 
   useEffect(() => {
@@ -73,7 +93,10 @@ export default function ThingsTab({ connection }: Props) {
 
   const handleFriendlyName = () => {
     if (!contextMenu) return;
-    const name = prompt("Enter friendly name:", contextMenu.device.friendlyName ?? "");
+    const name = prompt(
+      "Enter friendly name:",
+      contextMenu.device.friendlyName ?? "",
+    );
     if (name !== null) {
       setFriendlyName(contextMenu.device.mac, name);
     }
@@ -81,166 +104,311 @@ export default function ThingsTab({ connection }: Props) {
   };
 
   return (
-    <div className="flex-1 flex flex-col p-4 gap-4">
-      {networkInfo ? (
-        <div className="flex items-center justify-between bg-gray-900 rounded-lg px-4 py-3 border border-gray-800">
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-emerald-400" />
-            <span className="font-medium">{networkInfo.ssid}</span>
-            <span className="text-sm text-gray-400">{networkInfo.connectionState}</span>
-          </div>
-          <div className="relative">
-            <button
-              data-testid="network-info-toggle"
-              onClick={() => setShowNetworkInfo(!showNetworkInfo)}
-              className="text-gray-400 hover:text-gray-100 w-6 h-6 flex items-center justify-center rounded-full border border-gray-700 text-xs"
-            >
-              i
-            </button>
-            {showNetworkInfo && (
-              <div className="absolute right-0 top-8 bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm min-w-[200px] z-10 shadow-lg">
-                <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-                  <span className="text-gray-400">Gateway</span>
-                  <span>{networkInfo.gatewayIp}</span>
-                  <span className="text-gray-400">Your IP</span>
-                  <span>{networkInfo.localIp}</span>
-                  <span className="text-gray-400">Subnet</span>
-                  <span>{networkInfo.subnetMask}</span>
-                  <span className="text-gray-400">DNS</span>
-                  <span>{networkInfo.dnsServers.join(", ")}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-center bg-gray-900 rounded-lg px-4 py-3 border border-gray-800 text-gray-500">
-          No network detected
-        </div>
-      )}
-
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
+    <div className="page-fade">
+      <div className="section-head">
+        <h1 className="section-title">Things on Your Network</h1>
+        {networkInfo && (
+          <span className="sticker-tag" style={{ background: "var(--mint)" }}>
+            {networkInfo.ssid} · {networkInfo.connectionState}
+          </span>
+        )}
+        <div style={{ flex: 1 }} />
+        <div className="pill-row">
           <button
             data-testid="filter-active"
             onClick={() => setFilter("active")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+            className={`pill ${filter === "active" ? "active" : ""}`}
+            style={
               filter === "active"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-800 text-gray-400 hover:text-gray-100"
-            }`}
+                ? ({ "--p-active": "var(--pink)" } as React.CSSProperties)
+                : undefined
+            }
           >
-            Active ({activeCount})
+            Active{" "}
+            <span
+              className="mono"
+              style={{
+                background: "var(--ink)",
+                color: "var(--paper)",
+                fontSize: 10,
+                padding: "1px 6px",
+                borderRadius: 8,
+                marginLeft: 6,
+              }}
+            >
+              {activeCount}
+            </span>
           </button>
           <button
             data-testid="filter-all"
             onClick={() => setFilter("all")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+            className={`pill ${filter === "all" ? "active" : ""}`}
+            style={
               filter === "all"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-800 text-gray-400 hover:text-gray-100"
-            }`}
+                ? ({ "--p-active": "var(--pink)" } as React.CSSProperties)
+                : undefined
+            }
           >
-            All ({devices.length})
-          </button>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {lastScanTime && (
-            <span data-testid="last-scan-time" className="text-xs text-gray-500">
-              Scanned {formatLastSeen(lastScanTime)}
+            All{" "}
+            <span
+              className="mono"
+              style={{
+                background: "var(--ink)",
+                color: "var(--paper)",
+                fontSize: 10,
+                padding: "1px 6px",
+                borderRadius: 8,
+                marginLeft: 6,
+              }}
+            >
+              {devices.length}
             </span>
-          )}
-          <button
-            onClick={requestScan}
-            disabled={scanning}
-            className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-              scanning
-                ? "bg-gray-700 text-gray-500 cursor-not-allowed"
-                : "bg-blue-600 text-white hover:bg-blue-500"
-            }`}
-          >
-            {scanning ? `Scanning ${scanProgress}%` : "Scan"}
           </button>
         </div>
+        <button
+          onClick={requestScan}
+          disabled={scanning}
+          className="pill"
+          style={{ background: "var(--butter)" }}
+        >
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            {PlusIcon}
+            {scanning ? `Scanning ${scanProgress}%` : "Scan"}
+          </span>
+        </button>
       </div>
 
-      <div className="flex-1 overflow-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="text-left text-xs text-gray-500 border-b border-gray-800">
-              <th className="pb-2 font-medium">Device</th>
-              <th className="pb-2 font-medium">Details</th>
-              <th className="pb-2 font-medium text-right">Last Seen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((device) => (
-              <tr
-                key={device.mac}
-                data-testid="device-row"
-                onContextMenu={(e) => handleContextMenu(e, device)}
-                className="border-b border-gray-800/50 hover:bg-gray-900/50 cursor-default"
+      {networkInfo ? (
+        <div className="card" style={{ marginBottom: 18 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12,
+            }}
+          >
+            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <Sticker color="sky" size="lg" rotate={-4} glyph={WifiIcon} />
+              <div>
+                <div
+                  style={{
+                    fontFamily: "Fredoka",
+                    fontSize: 22,
+                    fontWeight: 600,
+                  }}
+                >
+                  {networkInfo.ssid}
+                </div>
+                <div className="row-sub">
+                  <span>{networkInfo.connectionState}</span>
+                  <span> · {activeCount} devices online</span>
+                </div>
+              </div>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                position: "relative",
+              }}
+            >
+              <button
+                data-testid="network-info-toggle"
+                onClick={() => setShowNetworkInfo(!showNetworkInfo)}
+                className="icon-btn"
+                style={{ width: 32, height: 32 }}
+                aria-label="Network info"
               >
-                <td className="py-3 pr-4">
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{deviceIcon(device)}</span>
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        {device.friendlyName ?? device.hostname}
-                        {device.pinned && (
-                          <span className="text-xs text-yellow-500">&#x1F4CC;</span>
-                        )}
-                      </div>
-                      {device.friendlyName && (
-                        <div className="text-xs text-gray-500">{device.hostname}</div>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 pr-4">
-                  <div className="text-sm space-y-0.5">
-                    <div>{device.ip}</div>
-                    <div className="text-gray-500 text-xs">{device.mac}</div>
-                    <div className="text-gray-500 text-xs">{device.vendor}</div>
-                    {device.deviceType !== "Unknown" && (
-                      <div className="text-gray-500 text-xs">{device.deviceType}</div>
-                    )}
-                  </div>
-                </td>
-                <td className="py-3 text-right text-sm">
-                  <div className="flex items-center justify-end gap-2">
-                    {device.online ? (
-                      <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    ) : (
-                      <span className="w-2 h-2 rounded-full bg-gray-600" />
-                    )}
-                    <span className={device.online ? "text-gray-300" : "text-gray-500"}>
-                      {formatLastSeen(device.lastSeen)}
+                <span
+                  style={{
+                    fontFamily: "Fredoka",
+                    fontWeight: 700,
+                    fontSize: 14,
+                  }}
+                >
+                  i
+                </span>
+              </button>
+              {showNetworkInfo && (
+                <div
+                  className="card-tight"
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 44,
+                    background: "var(--paper)",
+                    minWidth: 240,
+                    zIndex: 10,
+                    fontSize: 12,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "auto 1fr",
+                      gap: "4px 12px",
+                    }}
+                  >
+                    <span className="row-sub">Gateway</span>
+                    <span className="mono">{networkInfo.gatewayIp}</span>
+                    <span className="row-sub">Your IP</span>
+                    <span className="mono">{networkInfo.localIp}</span>
+                    <span className="row-sub">Subnet</span>
+                    <span className="mono">{networkInfo.subnetMask}</span>
+                    <span className="row-sub">DNS</span>
+                    <span className="mono">
+                      {networkInfo.dnsServers.join(", ")}
                     </span>
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {sorted.length === 0 && (
-          <div className="flex items-center justify-center py-12 text-gray-500">
-            {filter === "active" ? "No active devices" : "No devices discovered"}
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div
+          className="card"
+          style={{
+            marginBottom: 18,
+            textAlign: "center",
+            color: "var(--ink-mute)",
+          }}
+        >
+          No network detected
+        </div>
+      )}
+
+      {lastScanTime && (
+        <div
+          data-testid="last-scan-time"
+          className="row-sub"
+          style={{ marginBottom: 12, textAlign: "right" }}
+        >
+          Scanned {formatLastSeen(lastScanTime)}
+        </div>
+      )}
+
+      {sorted.length === 0 ? (
+        <div className="card" style={{ textAlign: "center", padding: 40 }}>
+          <span className="row-sub">
+            {filter === "active"
+              ? "No active devices"
+              : "No devices discovered"}
+          </span>
+        </div>
+      ) : (
+        <div className="grid-3">
+          {sorted.map((device) => (
+            <div
+              key={device.mac}
+              data-testid="device-row"
+              onContextMenu={(e) => handleContextMenu(e, device)}
+              className="card-tight"
+              style={{ position: "relative", cursor: "default" }}
+            >
+              {device.online && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 14,
+                    right: 14,
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    background: "var(--mint-deep)",
+                    border: "2.5px solid var(--ink)",
+                  }}
+                />
+              )}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "center",
+                  marginBottom: 10,
+                }}
+              >
+                <Sticker
+                  color={colorFromString(device.mac)}
+                  size="lg"
+                  rotate={-3}
+                  glyph={deviceGlyph(device)}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontFamily: "Fredoka",
+                      fontWeight: 600,
+                      fontSize: 17,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    {device.friendlyName ?? device.hostname}
+                    {device.pinned && (
+                      <span style={{ fontSize: 12 }}>📌</span>
+                    )}
+                  </div>
+                  <div className="row-sub">
+                    {device.isThisPc
+                      ? "This PC"
+                      : device.isGateway
+                        ? "Gateway"
+                        : device.deviceType !== "Unknown"
+                          ? device.deviceType
+                          : "Device"}{" "}
+                    · {device.online ? "online" : "offline"}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <span className="chip mono" style={{ background: "var(--cream)" }}>
+                  {device.ip}
+                </span>
+                <span className="chip mono" style={{ background: "var(--cream)" }}>
+                  {device.mac}
+                </span>
+                {device.vendor && (
+                  <span className="chip" style={{ background: "var(--cream)" }}>
+                    {device.vendor}
+                  </span>
+                )}
+              </div>
+              <div className="doodle-line" style={{ margin: "10px 0" }} />
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span className="row-sub">
+                  Last seen <b>{formatLastSeen(device.lastSeen)}</b>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {contextMenu && (
         <div
-          className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[180px] z-50"
-          style={{ left: contextMenu.x, top: contextMenu.y }}
+          className="card-tight"
+          style={{
+            position: "fixed",
+            left: contextMenu.x,
+            top: contextMenu.y,
+            background: "var(--paper)",
+            minWidth: 200,
+            padding: 6,
+            zIndex: 50,
+          }}
         >
-          <button
-            onClick={handleFriendlyName}
-            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 transition-colors"
-          >
+          <button onClick={handleFriendlyName} style={menuItemStyle}>
             Assign friendly name
           </button>
           <button
@@ -248,7 +416,7 @@ export default function ThingsTab({ connection }: Props) {
               togglePin(contextMenu.device.mac);
               setContextMenu(null);
             }}
-            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-700 transition-colors"
+            style={menuItemStyle}
           >
             {contextMenu.device.pinned ? "Unpin" : "Pin"}
           </button>
@@ -257,7 +425,7 @@ export default function ThingsTab({ connection }: Props) {
               forgetDevice(contextMenu.device.mac);
               setContextMenu(null);
             }}
-            className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-gray-700 transition-colors"
+            style={{ ...menuItemStyle, color: "var(--coral-deep)" }}
           >
             Forget
           </button>
