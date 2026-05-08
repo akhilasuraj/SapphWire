@@ -52,7 +52,7 @@ try
     builder.Services.AddHostedService<CaptureHostedService>();
     builder.Services.AddHostedService<ThroughputPublisher>();
     builder.Services.AddHostedService<RollupService>();
-    builder.Services.AddHostedService<LiveTierPruneService>();
+    builder.Services.AddHostedService<TierMaintenanceService>();
 
     // Things tab services
     builder.Services.AddSingleton<OuiDatabase>();
