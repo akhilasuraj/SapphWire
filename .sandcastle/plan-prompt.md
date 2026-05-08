@@ -22,7 +22,7 @@ An issue B is **blocked by** issue A if:
 
 An issue is **unblocked** if it has zero blocking dependencies on other open issues.
 
-For each unblocked issue, assign a branch name using the format `sandcastle/issue-{id}-{slug}`.
+For each unblocked issue, assign a branch name using the format `sandcastle/issue-{id}-{slug}`. if existing branch names already follow this format, reuse the existing branch name for that issue.
 
 # OUTPUT
 
