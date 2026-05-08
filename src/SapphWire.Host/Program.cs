@@ -41,6 +41,8 @@ try
     builder.Services.AddSingleton<IGeoIp, NullGeoIp>();
     builder.Services.AddSingleton<IPersistence>(
         _ => new SqlitePersistence(SqlitePersistence.GetDefaultConnectionString()));
+    builder.Services.AddSingleton<ITieredFlowStore>(
+        _ => new TieredFlowStore(SqlitePersistence.GetDefaultConnectionString()));
     builder.Services.AddSingleton<IFirewall, WindowsFirewall>();
     builder.Services.AddSingleton<IInstalledAppsProvider, WindowsInstalledAppsProvider>();
     builder.Services.AddSingleton<IToastNotifier, WindowsToastNotifier>();
@@ -50,6 +52,7 @@ try
     builder.Services.AddHostedService<CaptureHostedService>();
     builder.Services.AddHostedService<ThroughputPublisher>();
     builder.Services.AddHostedService<RollupService>();
+    builder.Services.AddHostedService<LiveTierPruneService>();
 
     // Things tab services
     builder.Services.AddSingleton<OuiDatabase>();
@@ -66,6 +69,7 @@ try
     var app = builder.Build();
 
     await app.Services.GetRequiredService<IPersistence>().InitializeAsync();
+    await app.Services.GetRequiredService<ITieredFlowStore>().InitializeAsync();
 
     // Apply autostart setting on startup
     var settingsMgr = app.Services.GetRequiredService<SettingsManager>();

@@ -11,6 +11,7 @@ public class ThroughputPublisher : BackgroundService
     private readonly FlowAggregator _aggregator;
     private readonly IHubContext<DashboardHub> _hub;
     private readonly IPersistence _persistence;
+    private readonly ITieredFlowStore _tieredFlowStore;
     private readonly IProcessResolver _processResolver;
     private readonly IDnsResolver _dnsResolver;
     private readonly IGeoIp _geoIp;
@@ -28,6 +29,7 @@ public class ThroughputPublisher : BackgroundService
         FlowAggregator aggregator,
         IHubContext<DashboardHub> hub,
         IPersistence persistence,
+        ITieredFlowStore tieredFlowStore,
         IProcessResolver processResolver,
         IDnsResolver dnsResolver,
         IGeoIp geoIp,
@@ -38,6 +40,7 @@ public class ThroughputPublisher : BackgroundService
         _aggregator = aggregator;
         _hub = hub;
         _persistence = persistence;
+        _tieredFlowStore = tieredFlowStore;
         _processResolver = processResolver;
         _dnsResolver = dnsResolver;
         _geoIp = geoIp;
@@ -61,6 +64,7 @@ public class ThroughputPublisher : BackgroundService
 
             try
             {
+                await _tieredFlowStore.WriteAsync(new[] { bucket });
                 await _persistence.WriteBucketsAsync(new[] { bucket });
 
                 if (perPid.Count > 0)

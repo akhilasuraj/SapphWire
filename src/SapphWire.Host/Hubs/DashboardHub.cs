@@ -7,6 +7,7 @@ namespace SapphWire.Host.Hubs;
 public class DashboardHub : Hub
 {
     private readonly IPersistence _persistence;
+    private readonly ITieredFlowStore _tieredFlowStore;
     private readonly IFirewall _firewall;
     private readonly FlowAggregator _aggregator;
     private readonly DeviceTracker _deviceTracker;
@@ -18,6 +19,7 @@ public class DashboardHub : Hub
 
     public DashboardHub(
         IPersistence persistence,
+        ITieredFlowStore tieredFlowStore,
         IFirewall firewall,
         FlowAggregator aggregator,
         DeviceTracker deviceTracker,
@@ -28,6 +30,7 @@ public class DashboardHub : Hub
         INetworkCapture capture)
     {
         _persistence = persistence;
+        _tieredFlowStore = tieredFlowStore;
         _firewall = firewall;
         _aggregator = aggregator;
         _deviceTracker = deviceTracker;
@@ -73,10 +76,9 @@ public class DashboardHub : Hub
     public async Task SubscribeLiveThroughput()
     {
         await Groups.AddToGroupAsync(Context.ConnectionId, "liveThroughput");
-        var snapshot = await _persistence.GetSeriesAsync(
+        var snapshot = await _tieredFlowStore.QueryAsync(
             DateTimeOffset.UtcNow.AddSeconds(-300),
-            DateTimeOffset.UtcNow,
-            TimeSpan.FromSeconds(1));
+            DateTimeOffset.UtcNow);
         await Clients.Caller.SendAsync("ThroughputSnapshot", snapshot);
     }
 
