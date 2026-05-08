@@ -1,8 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 :root {
+  /* Pastel palette */
   --cream: #FDF5E6;
   --cream-2: #F8EAD0;
   --paper: #FFFCF5;
@@ -35,6 +32,8 @@
   --radius-pill: 999px;
 }
 
+* { box-sizing: border-box; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -43,6 +42,7 @@ html, body {
   color: var(--ink);
   background: var(--cream);
   min-height: 100vh;
+  /* Polka dot paper */
   background-image:
     radial-gradient(circle at 20px 20px, rgba(46,42,74,0.045) 1.5px, transparent 2px);
   background-size: 32px 32px;
@@ -50,12 +50,14 @@ html, body {
 
 button { font-family: inherit; font-weight: 700; cursor: pointer; }
 
+/* ======== App shell ======== */
 .app {
   max-width: 1480px;
   margin: 0 auto;
   padding: 22px 28px 80px;
 }
 
+/* ======== Top bar ======== */
 .topbar {
   display: flex;
   align-items: center;
@@ -133,6 +135,7 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
 }
 .icon-btn:hover { transform: translate(-1px,-1px); box-shadow: 3px 3px 0 var(--ink); }
 
+/* ======== Cards ======== */
 .card {
   background: var(--paper);
   border: var(--stroke) solid var(--ink);
@@ -140,7 +143,7 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   box-shadow: var(--shadow-lg);
   padding: 18px;
 }
-.card-tight { padding: 14px; border-radius: var(--radius); box-shadow: var(--shadow); background: var(--paper); border: var(--stroke) solid var(--ink); }
+.card-tight { padding: 14px; border-radius: var(--radius); box-shadow: var(--shadow); }
 .card-title {
   font-family: 'Fredoka', sans-serif;
   font-weight: 600;
@@ -155,6 +158,7 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   border-radius: 50%;
 }
 
+/* ======== Pills / chips ======== */
 .pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .pill {
   padding: 7px 14px;
@@ -167,7 +171,6 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   transition: transform .12s ease;
 }
 .pill:hover { transform: translate(-1px,-1px); box-shadow: 3px 3px 0 var(--ink); }
-.pill:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: var(--shadow-sm); }
 .pill.active {
   background: var(--p-active, var(--butter));
   transform: translate(-1px,-1px);
@@ -184,6 +187,7 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   background: var(--paper);
 }
 
+/* ======== Sticker icon (rounded square w/ pastel + outline) ======== */
 .sticker {
   width: 36px; height: 36px;
   border: var(--stroke) solid var(--ink);
@@ -196,6 +200,7 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
 .sticker.sm { width: 28px; height: 28px; border-radius: 8px; }
 .sticker.lg { width: 52px; height: 52px; border-radius: 14px; }
 
+/* ======== Lists ======== */
 .row {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 12px;
@@ -210,6 +215,7 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
 .row-name { font-weight: 800; font-size: 14px; }
 .row-sub { font-size: 12px; color: var(--ink-soft); font-weight: 600; }
 
+/* ======== Bar (proportional) ======== */
 .bar-track {
   height: 10px;
   border: var(--stroke) solid var(--ink);
@@ -224,6 +230,7 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   border-right: var(--stroke) solid var(--ink);
 }
 
+/* ======== Toggle ======== */
 .toggle {
   position: relative;
   width: 76px; height: 38px;
@@ -233,7 +240,6 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   box-shadow: var(--shadow-sm);
   cursor: pointer;
   transition: background .2s;
-  flex-shrink: 0;
 }
 .toggle.on { background: var(--mint); }
 .toggle .knob {
@@ -246,8 +252,10 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
 }
 .toggle.on .knob { left: 41px; background: var(--mint-deep); }
 
+/* ======== Mono ======== */
 .mono { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
 
+/* ======== Sparkline cell ======== */
 .spark {
   width: 80px; height: 22px;
   border: var(--stroke) solid var(--ink);
@@ -256,12 +264,14 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   padding: 2px;
 }
 
+/* ======== Doodle separator line ======== */
 .doodle-line {
   height: 0;
   border-top: var(--stroke) dashed var(--ink-mute);
   margin: 16px 0;
 }
 
+/* ======== Misc ======== */
 .scrollbox { max-height: 540px; overflow-y: auto; padding-right: 6px; }
 .scrollbox::-webkit-scrollbar { width: 12px; }
 .scrollbox::-webkit-scrollbar-track {
@@ -279,6 +289,14 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; }
 .grid-usage { display: grid; grid-template-columns: 280px 1fr 1fr 1fr; gap: 18px; }
 
+.flex { display: flex; }
+.between { justify-content: space-between; }
+.center { align-items: center; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+
+/* Cute corner stickers */
 .sticker-tag {
   display: inline-block;
   padding: 4px 10px;
@@ -293,6 +311,7 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   box-shadow: var(--shadow-sm);
 }
 
+/* Section header on tabs */
 .section-head {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   margin-bottom: 16px;
@@ -308,6 +327,7 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   font-size: 13px;
 }
 
+/* Cartoon select */
 .cart-select {
   appearance: none;
   padding: 7px 28px 7px 14px;
@@ -322,9 +342,9 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 4l3 3 3-3' stroke='%232E2A4A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>");
   background-repeat: no-repeat;
   background-position: right 10px center;
-  color: var(--ink);
 }
 
+/* Search input */
 .cart-search {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 14px;
@@ -338,24 +358,15 @@ button { font-family: inherit; font-weight: 700; cursor: pointer; }
   border: 0; outline: 0; background: transparent;
   font-family: inherit; font-weight: 600;
   font-size: 13px; flex: 1; color: var(--ink);
-  min-width: 0;
 }
 .cart-search input::placeholder { color: var(--ink-mute); }
 
+/* Page transitions */
 .page-fade { animation: fadeIn .25s ease; }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.modal-backdrop {
-  position: fixed; inset: 0; z-index: 50;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(46,42,74,0.35);
-  backdrop-filter: blur(2px);
-}
-.modal-card {
-  width: 100%; max-width: 520px;
-  max-height: 86vh;
-  display: flex; flex-direction: column;
-}
+/* tweaks panel polish */
+[data-tweaks-host] { z-index: 50; }

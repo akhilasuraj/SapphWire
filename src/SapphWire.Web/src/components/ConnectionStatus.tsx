@@ -1,9 +1,20 @@
 import type { ConnectionStatus as Status } from "../useSignalR";
 
-const STATUS_CONFIG: Record<Status, { color: string; label: string }> = {
-  connected: { color: "bg-emerald-500", label: "Connected" },
-  connecting: { color: "bg-yellow-500", label: "Connecting…" },
-  disconnected: { color: "bg-red-500", label: "Disconnected" },
+const STATUS_CONFIG: Record<
+  Status,
+  { dot: string; bg: string; label: string }
+> = {
+  connected: { dot: "var(--mint-deep)", bg: "var(--mint)", label: "Connected" },
+  connecting: {
+    dot: "var(--butter-deep)",
+    bg: "var(--butter)",
+    label: "Connecting…",
+  },
+  disconnected: {
+    dot: "var(--coral-deep)",
+    bg: "var(--coral)",
+    label: "Disconnected",
+  },
 };
 
 interface Props {
@@ -11,15 +22,26 @@ interface Props {
 }
 
 export default function ConnectionStatus({ status }: Props) {
-  const { color, label } = STATUS_CONFIG[status];
+  const { dot, bg, label } = STATUS_CONFIG[status];
 
   return (
-    <div className="flex items-center gap-2 text-sm" data-testid="connection-status">
+    <span
+      className="chip"
+      style={{ background: bg }}
+      data-testid="connection-status"
+    >
       <span
-        className={`inline-block h-2.5 w-2.5 rounded-full ${color}`}
+        style={{
+          display: "inline-block",
+          width: 10,
+          height: 10,
+          borderRadius: "50%",
+          background: dot,
+          border: "2px solid var(--ink)",
+        }}
         data-testid="status-dot"
       />
       <span data-testid="status-label">{label}</span>
-    </div>
+    </span>
   );
 }

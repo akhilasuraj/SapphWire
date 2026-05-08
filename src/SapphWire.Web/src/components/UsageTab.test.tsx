@@ -149,7 +149,7 @@ describe("UsageTab", () => {
     render(<UsageTab connection={null} />);
     const pillButtons = screen.getAllByText("Apps");
     const pill = pillButtons.find((el) => el.tagName === "BUTTON");
-    expect(pill).toHaveClass("bg-blue-600");
+    expect(pill).toHaveClass("active");
   });
 
   it("clicking Publishers pill changes grouping", () => {

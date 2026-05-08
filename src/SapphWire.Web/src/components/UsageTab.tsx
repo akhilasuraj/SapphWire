@@ -10,12 +10,20 @@ import {
   type UsageRow,
   type SparklinePoint,
 } from "../useUsageData";
+import { LetterSticker, Sticker, colorFromString } from "./ui/Sticker";
+import { HostGlyph, TrafficGlyph } from "./ui/icons";
 
 interface Props {
   connection: HubConnection | null;
 }
 
 const PILLS: UsagePill[] = ["Apps", "Publishers", "Traffic"];
+
+const COLUMN_DOTS: Record<string, string> = {
+  left: "var(--mint)",
+  middle: "var(--lavender)",
+  right: "var(--pink)",
+};
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1_000_000_000)
@@ -37,53 +45,89 @@ function UsageRowItem({
   maxBytes: number;
   isSelected: boolean;
   onClick: () => void;
-  column: string;
+  column: "left" | "middle" | "right";
   showFavicon: boolean;
 }) {
   const total = row.bytesUp + row.bytesDown;
   const pct = maxBytes > 0 ? (total / maxBytes) * 100 : 0;
+  const stickerColor = colorFromString(row.name);
 
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer transition-colors ${
-        isSelected
-          ? "bg-blue-900/40 border-l-2 border-blue-500"
-          : "hover:bg-gray-800/50 border-l-2 border-transparent"
-      }`}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "4px 10px",
+        cursor: "pointer",
+        height: 40,
+        background: isSelected ? "var(--cream-2)" : "transparent",
+        borderLeft: isSelected
+          ? "3px solid var(--lavender-deep)"
+          : "3px solid transparent",
+        borderRadius: 8,
+      }}
     >
-      {showFavicon && (
+      {column === "middle" && showFavicon ? (
         <img
           data-testid={`favicon-${row.name}`}
           src={`/api/favicons/${encodeURIComponent(row.name)}`}
           alt=""
-          className="w-4 h-4 flex-shrink-0"
+          style={{ width: 16, height: 16, flexShrink: 0 }}
           onError={(e) => {
             (e.target as HTMLImageElement).src = "";
             (e.target as HTMLImageElement).style.display = "none";
           }}
         />
+      ) : column === "middle" ? (
+        <Sticker color={stickerColor} size="sm" glyph={HostGlyph} />
+      ) : column === "right" ? (
+        <Sticker color={stickerColor} size="sm" glyph={TrafficGlyph} />
+      ) : (
+        <LetterSticker name={row.name} color={stickerColor} size="sm" />
       )}
-      {!showFavicon && <div className="w-4 h-4 flex-shrink-0" />}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between mb-0.5">
-          <span className="text-xs font-medium text-gray-200 truncate">
-            {row.name}
-          </span>
-          <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
-            {formatBytes(total)}
-          </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            color: "var(--ink)",
+          }}
+        >
+          {row.name}
         </div>
         <div
           data-testid={`usage-bar-${column}-${row.name}`}
-          className="h-1 rounded-full bg-gray-700 overflow-hidden"
+          className="bar-track"
+          style={
+            {
+              marginTop: 4,
+              height: 6,
+              "--bar": `var(--${stickerColor})`,
+            } as React.CSSProperties
+          }
         >
           <div
-            className="h-full rounded-full bg-blue-500"
-            style={{ width: `${pct}%` }}
+            className="bar-fill"
+            style={{ width: `${Math.min(100, pct)}%` }}
           />
         </div>
       </div>
+      <span
+        className="mono"
+        style={{
+          fontSize: 11,
+          color: "var(--ink-soft)",
+          minWidth: 56,
+          textAlign: "right",
+        }}
+      >
+        {formatBytes(total)}
+      </span>
     </div>
   );
 }
@@ -97,6 +141,7 @@ function UsageColumn({
   onToggle,
   column,
   showFavicon,
+  dotColor,
 }: {
   testId: string;
   header: string;
@@ -104,8 +149,9 @@ function UsageColumn({
   rows: UsageRow[];
   selectedNames: string[];
   onToggle: (name: string) => void;
-  column: string;
+  column: "left" | "middle" | "right";
   showFavicon: boolean;
+  dotColor: string;
 }) {
   const maxBytes =
     rows.length > 0
@@ -113,39 +159,41 @@ function UsageColumn({
       : 0;
 
   return (
-    <div data-testid={testId} className="flex-1 flex flex-col min-w-0">
+    <div data-testid={testId} className="card">
       <div
         data-testid={headerTestId}
-        className="px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-800"
+        className="card-title"
       >
+        <span className="dot" style={{ background: dotColor }} />
         {header}
       </div>
-      <div className="flex-1 overflow-hidden">
-        {rows.length > 0 ? (
-          <List
-            style={{ height: 400 }}
-            rowCount={rows.length}
-            rowHeight={40}
-            rowProps={{}}
-            rowComponent={({ index, style: rowStyle }) => (
-              <div style={rowStyle}>
-                <UsageRowItem
-                  row={rows[index]}
-                  maxBytes={maxBytes}
-                  isSelected={selectedNames.includes(rows[index].name)}
-                  onClick={() => onToggle(rows[index].name)}
-                  column={column}
-                  showFavicon={showFavicon}
-                />
-              </div>
-            )}
-          />
-        ) : (
-          <div className="px-3 py-6 text-center text-xs text-gray-600">
-            No data
-          </div>
-        )}
-      </div>
+      {rows.length > 0 ? (
+        <List
+          style={{ height: 480 }}
+          rowCount={rows.length}
+          rowHeight={42}
+          rowProps={{}}
+          rowComponent={({ index, style: rowStyle }) => (
+            <div style={rowStyle}>
+              <UsageRowItem
+                row={rows[index]}
+                maxBytes={maxBytes}
+                isSelected={selectedNames.includes(rows[index].name)}
+                onClick={() => onToggle(rows[index].name)}
+                column={column}
+                showFavicon={showFavicon}
+              />
+            </div>
+          )}
+        />
+      ) : (
+        <div
+          style={{ padding: "20px 0", textAlign: "center" }}
+          className="row-sub"
+        >
+          No data
+        </div>
+      )}
     </div>
   );
 }
@@ -177,28 +225,42 @@ function DonutChart({
         animation: false,
         tooltip: {
           trigger: "item",
-          backgroundColor: "rgba(17,24,39,0.95)",
-          borderColor: "#374151",
-          textStyle: { color: "#e5e7eb" },
-          formatter: (params: { name: string; value: number; percent: number }) =>
+          backgroundColor: "#FFFCF5",
+          borderColor: "#2E2A4A",
+          borderWidth: 2,
+          textStyle: { color: "#2E2A4A", fontFamily: "Nunito" },
+          formatter: (params: {
+            name: string;
+            value: number;
+            percent: number;
+          }) =>
             `${params.name}: ${formatBytes(params.value)} (${params.percent}%)`,
         },
         series: [
           {
             type: "pie",
-            radius: ["50%", "75%"],
+            radius: ["52%", "78%"],
             avoidLabelOverlap: false,
             label: { show: false },
+            itemStyle: { borderColor: "#2E2A4A", borderWidth: 2.5 },
             data: [
               {
                 name: "Upload",
                 value: totalUp,
-                itemStyle: { color: "#10b981" },
+                itemStyle: {
+                  color: "#FFCDA8",
+                  borderColor: "#2E2A4A",
+                  borderWidth: 2.5,
+                },
               },
               {
                 name: "Download",
                 value: totalDown,
-                itemStyle: { color: "#3b82f6" },
+                itemStyle: {
+                  color: "#FFE69A",
+                  borderColor: "#2E2A4A",
+                  borderWidth: 2.5,
+                },
               },
             ],
           },
@@ -208,20 +270,74 @@ function DonutChart({
     );
   }, [totalUp, totalDown]);
 
+  const total = totalUp + totalDown;
+
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="card">
+      <div className="card-title">
+        <span className="dot" style={{ background: "var(--peach)" }} />
+        Total Bandwidth
+      </div>
+      <div style={{ position: "relative", width: "100%", height: 180 }}>
+        <div
+          ref={chartRef}
+          data-testid="donut-chart"
+          style={{ width: "100%", height: 180 }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            pointerEvents: "none",
+            textAlign: "center",
+          }}
+        >
+          <div>
+            <div className="row-sub">Total</div>
+            <div
+              style={{
+                fontFamily: "Fredoka",
+                fontWeight: 600,
+                fontSize: 22,
+              }}
+            >
+              {formatBytes(total)}
+            </div>
+          </div>
+        </div>
+      </div>
       <div
-        ref={chartRef}
-        data-testid="donut-chart"
-        className="w-32 h-32"
-      />
-      <div className="flex gap-3 text-xs">
-        <span className="text-green-400">
-          {"↑"} {formatBytes(totalUp)}
-        </span>
-        <span className="text-blue-400">
-          {"↓"} {formatBytes(totalDown)}
-        </span>
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: 14,
+          gap: 8,
+        }}
+      >
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div className="chip" style={{ background: "var(--peach)" }}>
+            ↑ Upload
+          </div>
+          <div
+            className="mono"
+            style={{ fontSize: 16, marginTop: 6, fontWeight: 700 }}
+          >
+            {formatBytes(totalUp)}
+          </div>
+        </div>
+        <div style={{ textAlign: "center", flex: 1 }}>
+          <div className="chip" style={{ background: "var(--butter)" }}>
+            ↓ Download
+          </div>
+          <div
+            className="mono"
+            style={{ fontSize: 16, marginTop: 6, fontWeight: 700 }}
+          >
+            {formatBytes(totalDown)}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -245,15 +361,16 @@ function UsageSparkline({ data }: { data: SparklinePoint[] }) {
   return (
     <svg
       data-testid="usage-sparkline"
-      className="w-full h-10"
+      style={{ width: "100%", height: 40 }}
       viewBox="0 0 100 32"
       preserveAspectRatio="none"
     >
       <polyline
         points={points}
         fill="none"
-        stroke="#3b82f6"
-        strokeWidth="1"
+        stroke="#2E2A4A"
+        strokeWidth="2"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -295,62 +412,63 @@ export default function UsageTab({ connection }: Props) {
   );
 
   return (
-    <div className="flex-1 flex flex-col p-4 gap-3">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-3">
-          <div className="flex gap-2">
-            {PILLS.map((p) => (
-              <button
-                key={p}
-                onClick={() => handlePillChange(p)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                  p === pill
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-800 text-gray-400 hover:text-gray-200"
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-
-          <div
-            data-testid="period-selector"
-            className="flex items-center gap-2"
-          >
+    <div className="page-fade">
+      <div className="section-head">
+        <h1 className="section-title">Usage</h1>
+        <div style={{ flex: 1 }} />
+        <div className="pill-row">
+          {PILLS.map((p) => (
             <button
-              data-testid="period-prev"
-              onClick={() => setOffset((o) => o - 1)}
-              className="px-2 py-1 text-gray-400 hover:text-gray-200 bg-gray-800 rounded"
-            >
-              {"<"}
-            </button>
-            <select
-              data-testid="period-select"
-              value={period}
-              onChange={(e) =>
-                handlePeriodChange(e.target.value as UsagePeriod)
+              key={p}
+              onClick={() => handlePillChange(p)}
+              className={`pill ${p === pill ? "active" : ""}`}
+              style={
+                p === pill
+                  ? ({ "--p-active": "var(--mint)" } as React.CSSProperties)
+                  : undefined
               }
-              className="bg-gray-800 text-gray-300 text-xs rounded px-2 py-1.5 border border-gray-700"
             >
-              <option value="Day">Day</option>
-              <option value="Week">Week</option>
-              <option value="Month">Month</option>
-            </select>
-            <button
-              data-testid="period-next"
-              onClick={() => setOffset((o) => o + 1)}
-              className="px-2 py-1 text-gray-400 hover:text-gray-200 bg-gray-800 rounded"
-            >
-              {">"}
+              {p}
             </button>
-          </div>
+          ))}
         </div>
-
-        <DonutChart totalUp={data.totalUp} totalDown={data.totalDown} />
+        <div
+          data-testid="period-selector"
+          style={{ display: "flex", alignItems: "center", gap: 6 }}
+        >
+          <button
+            data-testid="period-prev"
+            onClick={() => setOffset((o) => o - 1)}
+            className="pill"
+            style={{ padding: "6px 10px", background: "var(--paper)" }}
+          >
+            {"<"}
+          </button>
+          <select
+            data-testid="period-select"
+            value={period}
+            onChange={(e) =>
+              handlePeriodChange(e.target.value as UsagePeriod)
+            }
+            className="cart-select"
+          >
+            <option value="Day">Day</option>
+            <option value="Week">Week</option>
+            <option value="Month">Month</option>
+          </select>
+          <button
+            data-testid="period-next"
+            onClick={() => setOffset((o) => o + 1)}
+            className="pill"
+            style={{ padding: "6px 10px", background: "var(--paper)" }}
+          >
+            {">"}
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 flex gap-2 min-h-0">
+      <div className="grid-usage" style={{ marginBottom: 18 }}>
+        <DonutChart totalUp={data.totalUp} totalDown={data.totalDown} />
         <UsageColumn
           testId="column-left"
           header={pill}
@@ -360,6 +478,7 @@ export default function UsageTab({ connection }: Props) {
           onToggle={(name) => toggleFilter("left", name)}
           column="left"
           showFavicon={false}
+          dotColor={COLUMN_DOTS.left}
         />
         <UsageColumn
           testId="column-middle"
@@ -370,6 +489,7 @@ export default function UsageTab({ connection }: Props) {
           onToggle={(name) => toggleFilter("middle", name)}
           column="middle"
           showFavicon={true}
+          dotColor={COLUMN_DOTS.middle}
         />
         <UsageColumn
           testId="column-right"
@@ -380,10 +500,15 @@ export default function UsageTab({ connection }: Props) {
           onToggle={(name) => toggleFilter("right", name)}
           column="right"
           showFavicon={false}
+          dotColor={COLUMN_DOTS.right}
         />
       </div>
 
-      <div className="border-t border-gray-800 pt-2">
+      <div className="card">
+        <div className="card-title">
+          <span className="dot" style={{ background: "var(--sky)" }} />
+          Recent activity
+        </div>
         <UsageSparkline data={data.sparkline} />
       </div>
     </div>

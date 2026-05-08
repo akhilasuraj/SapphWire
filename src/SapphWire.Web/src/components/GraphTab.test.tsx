@@ -52,8 +52,8 @@ describe("GraphTab", () => {
 
   it("renders 5 Minutes as the default active time pill", () => {
     render(<GraphTab connection={null} />);
-    expect(screen.getByText("5 Minutes")).toHaveClass("bg-blue-600");
-    expect(screen.getByText("3 Hours")).not.toHaveClass("bg-blue-600");
+    expect(screen.getByText("5 Minutes")).toHaveClass("active");
+    expect(screen.getByText("3 Hours")).not.toHaveClass("active");
   });
 
   it("all time pills are enabled and clickable", () => {
@@ -68,9 +68,9 @@ describe("GraphTab", () => {
 
     fireEvent.click(screen.getByText("3 Hours"));
 
-    expect(screen.getByText("3 Hours")).toHaveClass("bg-blue-600");
-    expect(screen.getByText("5 Minutes")).not.toHaveClass("bg-blue-600");
-    expect(screen.getByText("24 Hours")).not.toHaveClass("bg-blue-600");
+    expect(screen.getByText("3 Hours")).toHaveClass("active");
+    expect(screen.getByText("5 Minutes")).not.toHaveClass("active");
+    expect(screen.getByText("24 Hours")).not.toHaveClass("active");
   });
 
   it("passes timePill and filterPill to useGraphData", () => {

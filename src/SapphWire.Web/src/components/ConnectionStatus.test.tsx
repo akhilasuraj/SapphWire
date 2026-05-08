@@ -3,23 +3,29 @@ import { describe, it, expect } from "vitest";
 import ConnectionStatus from "./ConnectionStatus";
 
 describe("ConnectionStatus", () => {
-  it("shows 'Connected' with green dot when connected", () => {
+  it("shows 'Connected' with mint dot when connected", () => {
     render(<ConnectionStatus status="connected" />);
     expect(screen.getByTestId("status-label")).toHaveTextContent("Connected");
-    expect(screen.getByTestId("status-dot")).toHaveClass("bg-emerald-500");
+    expect(screen.getByTestId("status-dot").style.background).toContain(
+      "--mint-deep",
+    );
   });
 
-  it("shows 'Connecting…' with yellow dot when connecting", () => {
+  it("shows 'Connecting…' with butter dot when connecting", () => {
     render(<ConnectionStatus status="connecting" />);
     expect(screen.getByTestId("status-label")).toHaveTextContent("Connecting…");
-    expect(screen.getByTestId("status-dot")).toHaveClass("bg-yellow-500");
+    expect(screen.getByTestId("status-dot").style.background).toContain(
+      "--butter-deep",
+    );
   });
 
-  it("shows 'Disconnected' with red dot when disconnected", () => {
+  it("shows 'Disconnected' with coral dot when disconnected", () => {
     render(<ConnectionStatus status="disconnected" />);
     expect(screen.getByTestId("status-label")).toHaveTextContent(
       "Disconnected",
     );
-    expect(screen.getByTestId("status-dot")).toHaveClass("bg-red-500");
+    expect(screen.getByTestId("status-dot").style.background).toContain(
+      "--coral-deep",
+    );
   });
 });

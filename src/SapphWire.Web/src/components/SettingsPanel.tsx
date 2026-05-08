@@ -15,6 +15,70 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+function ToggleSwitch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <label
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 12,
+        cursor: "pointer",
+      }}
+    >
+      <span style={{ fontSize: 13, fontWeight: 700 }}>{label}</span>
+      <span style={{ position: "relative" }}>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={onChange}
+          aria-label={label}
+          style={{
+            position: "absolute",
+            inset: 0,
+            opacity: 0,
+            width: "100%",
+            height: "100%",
+            margin: 0,
+            cursor: "pointer",
+          }}
+        />
+        <span
+          className={`toggle ${checked ? "on" : ""}`}
+          aria-hidden="true"
+          style={{ display: "block" }}
+        >
+          <span className="knob" />
+        </span>
+      </span>
+    </label>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h3
+      style={{
+        fontFamily: "Fredoka",
+        fontWeight: 600,
+        fontSize: 17,
+        margin: 0,
+        marginBottom: 12,
+      }}
+    >
+      {children}
+    </h3>
+  );
+}
+
 export default function SettingsPanel({ connection, onClose }: Props) {
   const {
     settings,
@@ -29,97 +93,118 @@ export default function SettingsPanel({ connection, onClose }: Props) {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md bg-gray-900 border border-gray-700 rounded-lg shadow-xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold">Settings</h2>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="card modal-card"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 16,
+          }}
+        >
+          <h2
+            style={{
+              fontFamily: "Fredoka",
+              fontWeight: 600,
+              fontSize: 24,
+              margin: 0,
+            }}
+          >
+            Settings
+          </h2>
           <button
             onClick={onClose}
             aria-label="Close settings"
-            className="text-gray-400 hover:text-gray-100 text-xl leading-none"
+            className="icon-btn"
+            style={{ width: 36, height: 36 }}
           >
-            &times;
+            <span style={{ fontSize: 20, lineHeight: 1, fontWeight: 700 }}>
+              ×
+            </span>
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-6 max-h-[70vh] overflow-y-auto">
-          <section>
-            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
-              General
-            </h3>
-            <label className="flex items-center justify-between py-1">
-              <span className="text-sm">Start SapphWire with Windows</span>
-              <input
-                type="checkbox"
-                checked={settings.autostartEnabled}
-                onChange={() => setAutostart(!settings.autostartEnabled)}
-                aria-label="Start SapphWire with Windows"
-                className="w-4 h-4 accent-blue-500"
-              />
-            </label>
-            <div className="mt-2">
+        <div style={{ overflowY: "auto", paddingRight: 4 }}>
+          <section style={{ marginBottom: 18 }}>
+            <SectionTitle>General</SectionTitle>
+            <ToggleSwitch
+              label="Start SapphWire with Windows"
+              checked={settings.autostartEnabled}
+              onChange={() => setAutostart(!settings.autostartEnabled)}
+            />
+            <div style={{ marginTop: 12 }}>
               <button
                 onClick={() =>
                   isPaused ? resumeMonitoring() : pauseMonitoring()
                 }
-                className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded"
+                className="pill"
+                style={{ background: "var(--lavender)" }}
               >
                 {isPaused ? "Resume monitoring" : "Pause monitoring"}
               </button>
             </div>
           </section>
 
-          <section>
-            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
-              Notifications
-            </h3>
-            <label className="flex items-center justify-between py-1">
-              <span className="text-sm">
-                Show Windows toast on first-activity alerts
-              </span>
-              <input
-                type="checkbox"
-                checked={settings.toastEnabled}
-                onChange={() => setToastEnabled(!settings.toastEnabled)}
-                aria-label="Show Windows toast on first-activity alerts"
-                className="w-4 h-4 accent-blue-500"
-              />
-            </label>
+          <div className="doodle-line" />
+
+          <section style={{ marginBottom: 18 }}>
+            <SectionTitle>Notifications</SectionTitle>
+            <ToggleSwitch
+              label="Show Windows toast on first-activity alerts"
+              checked={settings.toastEnabled}
+              onChange={() => setToastEnabled(!settings.toastEnabled)}
+            />
           </section>
 
-          <section>
-            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
-              Data
-            </h3>
+          <div className="doodle-line" />
+
+          <section style={{ marginBottom: 18 }}>
+            <SectionTitle>Data</SectionTitle>
             {info && (
               <>
-                <div className="text-sm space-y-1 mb-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Database path</span>
-                    <span className="text-gray-200 text-xs font-mono truncate ml-2 max-w-[240px]">
-                      {info.dbPath}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Size</span>
-                    <span className="text-gray-200">
-                      {formatBytes(info.dbSizeBytes)}
-                    </span>
-                  </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    display: "grid",
+                    gridTemplateColumns: "auto 1fr",
+                    gap: "4px 12px",
+                    marginBottom: 12,
+                  }}
+                >
+                  <span className="row-sub">Database path</span>
+                  <span
+                    className="mono"
+                    style={{
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    title={info.dbPath}
+                  >
+                    {info.dbPath}
+                  </span>
+                  <span className="row-sub">Size</span>
+                  <span className="mono">{formatBytes(info.dbSizeBytes)}</span>
                 </div>
-                <div className="flex gap-2">
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   <button
                     onClick={() =>
                       connection?.invoke("OpenDataFolder").catch(() => {})
                     }
-                    className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded"
+                    className="pill"
+                    style={{ background: "var(--sky)" }}
                   >
                     Open data folder
                   </button>
                   {!showClearConfirm ? (
                     <button
                       onClick={() => setShowClearConfirm(true)}
-                      className="px-3 py-1.5 text-sm bg-red-900/50 hover:bg-red-900 border border-red-700 rounded text-red-200"
+                      className="pill"
+                      style={{ background: "var(--coral)" }}
                     >
                       Clear all data
                     </button>
@@ -129,7 +214,8 @@ export default function SettingsPanel({ connection, onClose }: Props) {
                         clearData();
                         setShowClearConfirm(false);
                       }}
-                      className="px-3 py-1.5 text-sm bg-red-700 hover:bg-red-600 border border-red-500 rounded text-white"
+                      className="pill"
+                      style={{ background: "var(--coral-deep)", color: "var(--paper)" }}
                     >
                       Confirm
                     </button>
@@ -139,34 +225,36 @@ export default function SettingsPanel({ connection, onClose }: Props) {
             )}
           </section>
 
+          <div className="doodle-line" />
+
           <section>
-            <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wide mb-3">
-              About
-            </h3>
+            <SectionTitle>About</SectionTitle>
             {info && (
-              <div className="text-sm space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Version</span>
-                  <span className="text-gray-200">{info.version}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Build</span>
-                  <span className="text-gray-200 font-mono text-xs">
-                    {info.buildHash}
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <button
-                    onClick={() =>
-                      connection?.invoke("ShowLogs").catch(() => {})
-                    }
-                    className="text-sm text-blue-400 hover:text-blue-300"
-                  >
-                    Show logs
-                  </button>
-                </div>
+              <div
+                style={{
+                  fontSize: 12,
+                  display: "grid",
+                  gridTemplateColumns: "auto 1fr",
+                  gap: "4px 12px",
+                }}
+              >
+                <span className="row-sub">Version</span>
+                <span className="mono">{info.version}</span>
+                <span className="row-sub">Build</span>
+                <span className="mono">{info.buildHash}</span>
               </div>
             )}
+            <div style={{ marginTop: 12 }}>
+              <button
+                onClick={() =>
+                  connection?.invoke("ShowLogs").catch(() => {})
+                }
+                className="pill"
+                style={{ background: "var(--butter)" }}
+              >
+                Show logs
+              </button>
+            </div>
           </section>
         </div>
       </div>
