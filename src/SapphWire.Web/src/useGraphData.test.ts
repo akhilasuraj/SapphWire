@@ -77,13 +77,13 @@ describe("useGraphData", () => {
     expect(mockUseLiveThroughput).toHaveBeenCalledWith(null);
   });
 
-  it("invokes GetGraphSeries for non-live time pills", async () => {
+  it("invokes GetTieredThroughput for non-live All pills", async () => {
     const conn = createMockConnection();
-    const historical: GraphPoint[] = [
-      { timestamp: "2024-01-01T10:00:00Z", values: { Total: 5000 } },
-      { timestamp: "2024-01-01T10:01:00Z", values: { Total: 3000 } },
+    const tiered = [
+      { timestamp: "2024-01-01T10:00:00Z", totalUp: 2000, totalDown: 3000 },
+      { timestamp: "2024-01-01T10:01:00Z", totalUp: 1000, totalDown: 2000 },
     ];
-    conn.invoke.mockResolvedValue(historical);
+    conn.invoke.mockResolvedValue(tiered);
 
     const { result } = renderHook(() =>
       useGraphData(conn as unknown as Conn, "3 Hours", "All"),
@@ -91,17 +91,16 @@ describe("useGraphData", () => {
 
     await waitFor(() => {
       expect(conn.invoke).toHaveBeenCalledWith(
-        "GetGraphSeries",
+        "GetTieredThroughput",
         expect.any(String),
         expect.any(String),
-        60,
-        "None",
       );
     });
 
     await waitFor(() => {
       expect(result.current).toHaveLength(2);
       expect(result.current[0].values["Total"]).toBe(5000);
+      expect(result.current[1].values["Total"]).toBe(3000);
     });
   });
 
@@ -185,7 +184,7 @@ describe("useGraphData", () => {
     });
   });
 
-  it("uses correct bucket sizes for each pill", async () => {
+  it("uses correct bucket sizes for each pill with non-All filter", async () => {
     const conn = createMockConnection();
     conn.invoke.mockResolvedValue([]);
 
@@ -194,6 +193,7 @@ describe("useGraphData", () => {
       { pill: "24 Hours" as const, bucket: 300 },
       { pill: "Week" as const, bucket: 3600 },
       { pill: "Month" as const, bucket: 3600 },
+      { pill: "Year" as const, bucket: 3600 },
     ];
 
     for (const { pill, bucket } of pills) {
@@ -201,7 +201,7 @@ describe("useGraphData", () => {
       conn.invoke.mockResolvedValue([]);
 
       renderHook(() =>
-        useGraphData(conn as unknown as Conn, pill, "All"),
+        useGraphData(conn as unknown as Conn, pill, "Apps"),
       );
 
       await waitFor(() => {
@@ -210,7 +210,7 @@ describe("useGraphData", () => {
           expect.any(String),
           expect.any(String),
           bucket,
-          "None",
+          "App",
         );
       });
     }

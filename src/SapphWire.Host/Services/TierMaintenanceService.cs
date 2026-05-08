@@ -2,11 +2,11 @@ using SapphWire.Core;
 
 namespace SapphWire.Host.Services;
 
-public class LiveTierPruneService : BackgroundService
+public class TierMaintenanceService : BackgroundService
 {
     private readonly ITieredFlowStore _store;
 
-    public LiveTierPruneService(ITieredFlowStore store)
+    public TierMaintenanceService(ITieredFlowStore store)
     {
         _store = store;
     }
@@ -17,7 +17,9 @@ public class LiveTierPruneService : BackgroundService
 
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            await _store.PruneAsync(DateTimeOffset.UtcNow);
+            var now = DateTimeOffset.UtcNow;
+            await _store.DownsampleAsync(now);
+            await _store.PruneAsync(now);
         }
     }
 }

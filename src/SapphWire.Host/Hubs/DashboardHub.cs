@@ -119,6 +119,14 @@ public class DashboardHub : Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, "firewall");
     }
 
+    public async Task<IReadOnlyList<ThroughputBucket>> GetTieredThroughput(
+        string fromIso, string toIso)
+    {
+        var from = DateTimeOffset.Parse(fromIso);
+        var to = DateTimeOffset.Parse(toIso);
+        return await _tieredFlowStore.QueryAsync(from, to);
+    }
+
     public async Task<IReadOnlyList<GraphSeriesPoint>> GetGraphSeries(
         string fromIso, string toIso, int bucketSeconds, string groupByStr)
     {

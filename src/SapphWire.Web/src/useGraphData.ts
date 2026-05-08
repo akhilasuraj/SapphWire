@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 import { useLiveThroughput } from "./useLiveThroughput";
 
-export type TimePill = "5 Minutes" | "3 Hours" | "24 Hours" | "Week" | "Month";
+export type TimePill = "5 Minutes" | "3 Hours" | "24 Hours" | "Week" | "Month" | "Year";
 export type FilterPill = "All" | "Apps" | "Publishers";
 export type YAxisScale =
   | "Auto"
@@ -29,6 +29,8 @@ function getBucketSeconds(pill: TimePill): number {
       return 3600;
     case "Month":
       return 3600;
+    case "Year":
+      return 3600;
   }
 }
 
@@ -44,6 +46,8 @@ function getRangeSeconds(pill: TimePill): number {
       return 604800;
     case "Month":
       return 2592000;
+    case "Year":
+      return 31536000;
   }
 }
 
@@ -58,12 +62,19 @@ function getGroupBy(filter: FilterPill): string {
   }
 }
 
+interface TieredBucket {
+  timestamp: string;
+  totalUp: number;
+  totalDown: number;
+}
+
 export function useGraphData(
   connection: HubConnection | null,
   timePill: TimePill,
   filterPill: FilterPill,
 ): GraphPoint[] {
   const isLive = timePill === "5 Minutes" && filterPill === "All";
+  const isTieredAll = timePill !== "5 Minutes" && filterPill === "All";
   const liveData = useLiveThroughput(isLive ? connection : null);
   const [historicalData, setHistoricalData] = useState<GraphPoint[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -76,21 +87,39 @@ export function useGraphData(
 
     const fetchData = () => {
       const rangeSeconds = getRangeSeconds(timePill);
-      const bucketSeconds = getBucketSeconds(timePill);
-      const groupBy = getGroupBy(filterPill);
       const now = new Date();
       const from = new Date(now.getTime() - rangeSeconds * 1000);
 
-      connection
-        .invoke(
-          "GetGraphSeries",
-          from.toISOString(),
-          now.toISOString(),
-          bucketSeconds,
-          groupBy,
-        )
-        .then((data: GraphPoint[]) => setHistoricalData(data))
-        .catch(() => {});
+      if (isTieredAll) {
+        connection
+          .invoke(
+            "GetTieredThroughput",
+            from.toISOString(),
+            now.toISOString(),
+          )
+          .then((data: TieredBucket[]) =>
+            setHistoricalData(
+              data.map((b) => ({
+                timestamp: b.timestamp,
+                values: { Total: b.totalUp + b.totalDown },
+              })),
+            ),
+          )
+          .catch(() => {});
+      } else {
+        const bucketSeconds = getBucketSeconds(timePill);
+        const groupBy = getGroupBy(filterPill);
+        connection
+          .invoke(
+            "GetGraphSeries",
+            from.toISOString(),
+            now.toISOString(),
+            bucketSeconds,
+            groupBy,
+          )
+          .then((data: GraphPoint[]) => setHistoricalData(data))
+          .catch(() => {});
+      }
     };
 
     fetchData();
@@ -105,7 +134,7 @@ export function useGraphData(
         intervalRef.current = null;
       }
     };
-  }, [connection, timePill, filterPill, isLive]);
+  }, [connection, timePill, filterPill, isLive, isTieredAll]);
 
   if (isLive) {
     return liveData.map((p) => ({

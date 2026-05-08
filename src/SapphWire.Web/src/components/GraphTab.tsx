@@ -21,6 +21,7 @@ const TIME_PILLS: TimePill[] = [
   "24 Hours",
   "Week",
   "Month",
+  "Year",
 ];
 const FILTER_PILLS: FilterPill[] = ["All", "Apps", "Publishers"];
 const Y_AXIS_OPTIONS: YAxisScale[] = [

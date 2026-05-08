@@ -61,8 +61,10 @@ public class TieredFlowStoreTests : IAsyncLifetime
 
         await _store.PruneAsync(now);
 
-        var result = await _store.QueryAsync(old.AddSeconds(-1), now);
+        var oldResult = await _store.QueryAsync(old.AddSeconds(-10), old.AddSeconds(10));
+        oldResult.Should().BeEmpty();
 
+        var result = await _store.QueryAsync(now.AddMinutes(-5), now);
         result.Should().ContainSingle();
         result[0].Timestamp.Should().Be(recent);
         result[0].TotalUp.Should().Be(300);
@@ -101,11 +103,15 @@ public class TieredFlowStoreTests : IAsyncLifetime
 
         await _store.PruneAsync(now);
 
-        var result = await _store.QueryAsync(exactBoundary.AddSeconds(-2), now);
+        var prunedResult = await _store.QueryAsync(
+            exactBoundary.AddSeconds(-10), exactBoundary.AddSeconds(-1));
+        prunedResult.Should().BeEmpty();
 
-        result.Should().ContainSingle();
-        result[0].Timestamp.Should().Be(exactBoundary);
-        result[0].TotalUp.Should().Be(100);
+        var survivedResult = await _store.QueryAsync(
+            exactBoundary.AddSeconds(-1), exactBoundary.AddSeconds(1));
+        survivedResult.Should().ContainSingle();
+        survivedResult[0].Timestamp.Should().Be(exactBoundary);
+        survivedResult[0].TotalUp.Should().Be(100);
     }
 
     [Fact]
@@ -178,5 +184,256 @@ public class TieredFlowStoreTests : IAsyncLifetime
         result.Should().ContainSingle();
         result[0].TotalUp.Should().Be(300);
         result[0].TotalDown.Should().Be(400);
+    }
+
+    // --- Downsample tests ---
+
+    [Fact]
+    public async Task Downsample_LiveToShort_SumsBytesPerMinute()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+
+        await _store.WriteAsync(new[]
+        {
+            new ThroughputBucket(t0, 100, 200),
+            new ThroughputBucket(t0.AddSeconds(30), 150, 250),
+            new ThroughputBucket(t0.AddSeconds(60), 50, 75),
+            new ThroughputBucket(t0.AddSeconds(90), 25, 50),
+        });
+
+        await _store.DownsampleAsync(t0.AddMinutes(5));
+
+        var result = await _store.QueryAsync(t0.AddHours(-1), t0.AddHours(2));
+
+        result.Should().HaveCount(2);
+        result[0].Timestamp.Should().Be(t0);
+        result[0].TotalUp.Should().Be(250);
+        result[0].TotalDown.Should().Be(450);
+        result[1].Timestamp.Should().Be(t0.AddMinutes(1));
+        result[1].TotalUp.Should().Be(75);
+        result[1].TotalDown.Should().Be(125);
+    }
+
+    [Fact]
+    public async Task Downsample_ShortToMedium_SumsBytesPerTenMinutes()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+
+        var buckets = Enumerable.Range(0, 20)
+            .Select(i => new ThroughputBucket(t0.AddMinutes(i), 100, 200))
+            .ToList();
+        await _store.WriteAsync(buckets);
+
+        await _store.DownsampleAsync(t0.AddMinutes(25));
+
+        var result = await _store.QueryAsync(t0.AddDays(-1), t0.AddDays(6));
+
+        result.Should().HaveCount(2);
+        result[0].TotalUp.Should().Be(1000);
+        result[0].TotalDown.Should().Be(2000);
+        result[1].TotalUp.Should().Be(1000);
+        result[1].TotalDown.Should().Be(2000);
+    }
+
+    [Fact]
+    public async Task Downsample_MediumToLong_SumsBytesPerHour()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+
+        var buckets = Enumerable.Range(0, 12)
+            .Select(i => new ThroughputBucket(t0.AddMinutes(i * 10), 100, 200))
+            .ToList();
+        await _store.WriteAsync(buckets);
+
+        await _store.DownsampleAsync(t0.AddHours(3));
+
+        var result = await _store.QueryAsync(t0.AddDays(-15), t0.AddDays(16));
+
+        result.Should().HaveCount(2);
+        result[0].TotalUp.Should().Be(600);
+        result[0].TotalDown.Should().Be(1200);
+        result[1].TotalUp.Should().Be(600);
+        result[1].TotalDown.Should().Be(1200);
+    }
+
+    // --- Prune tests for new tiers ---
+
+    [Fact]
+    public async Task Prune_ShortTier_RemovesRowsOlderThan24Hours()
+    {
+        var now = Ts(2024, 6, 15, 10, 0, 0);
+        var old = now.AddHours(-25);
+        var recent = now.AddHours(-1);
+
+        await _store.WriteAsync(new[]
+        {
+            new ThroughputBucket(old, 100, 200),
+            new ThroughputBucket(recent, 300, 400),
+        });
+
+        await _store.DownsampleAsync(now);
+
+        var beforePrune = await _store.QueryAsync(old.AddHours(-1), old.AddHours(23));
+        beforePrune.Should().ContainSingle();
+
+        await _store.PruneAsync(now);
+
+        var afterPrune = await _store.QueryAsync(old.AddHours(-1), old.AddHours(23));
+        afterPrune.Should().BeEmpty();
+
+        var recentResult = await _store.QueryAsync(now.AddHours(-3), now);
+        recentResult.Should().ContainSingle();
+        recentResult[0].TotalUp.Should().Be(300);
+    }
+
+    [Fact]
+    public async Task Prune_MediumTier_RemovesRowsOlderThan30Days()
+    {
+        var now = Ts(2024, 6, 15, 10, 0, 0);
+        var old = now.AddDays(-31);
+        var recent = now.AddDays(-1);
+
+        await _store.WriteAsync(new[]
+        {
+            new ThroughputBucket(old, 100, 200),
+            new ThroughputBucket(recent, 300, 400),
+        });
+
+        await _store.DownsampleAsync(now);
+
+        var beforePrune = await _store.QueryAsync(old.AddDays(-1), old.AddDays(6));
+        beforePrune.Should().ContainSingle();
+
+        await _store.PruneAsync(now);
+
+        var afterPrune = await _store.QueryAsync(old.AddDays(-1), old.AddDays(6));
+        afterPrune.Should().BeEmpty();
+
+        var recentResult = await _store.QueryAsync(now.AddDays(-7), now);
+        recentResult.Should().ContainSingle();
+        recentResult[0].TotalUp.Should().Be(300);
+    }
+
+    [Fact]
+    public async Task Prune_LongTier_RemovesRowsOlderThan1Year()
+    {
+        var now = Ts(2024, 6, 15, 10, 0, 0);
+        var old = now.AddDays(-366);
+        var recent = now.AddDays(-100);
+
+        await _store.WriteAsync(new[]
+        {
+            new ThroughputBucket(old, 100, 200),
+            new ThroughputBucket(recent, 300, 400),
+        });
+
+        await _store.DownsampleAsync(now);
+
+        var beforePrune = await _store.QueryAsync(old.AddDays(-10), old.AddDays(21));
+        beforePrune.Should().ContainSingle();
+
+        await _store.PruneAsync(now);
+
+        var afterPrune = await _store.QueryAsync(old.AddDays(-10), old.AddDays(21));
+        afterPrune.Should().BeEmpty();
+
+        var recentResult = await _store.QueryAsync(now.AddDays(-200), now);
+        recentResult.Should().ContainSingle();
+        recentResult[0].TotalUp.Should().Be(300);
+    }
+
+    // --- Tier selection tests ---
+
+    [Fact]
+    public async Task Query_ThreeHourRange_ReadsFromShortTier()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+
+        var buckets = Enumerable.Range(0, 120)
+            .Select(i => new ThroughputBucket(t0.AddSeconds(i), 10, 20))
+            .ToList();
+        await _store.WriteAsync(buckets);
+        await _store.DownsampleAsync(t0.AddMinutes(5));
+
+        var result = await _store.QueryAsync(t0.AddMinutes(-30), t0.AddHours(2).AddMinutes(30));
+
+        result.Should().HaveCount(2);
+        result[0].TotalUp.Should().Be(600);
+        result[0].TotalDown.Should().Be(1200);
+        result[1].TotalUp.Should().Be(600);
+        result[1].TotalDown.Should().Be(1200);
+    }
+
+    [Fact]
+    public async Task Query_WeekRange_ReadsFromMediumTier()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+
+        var buckets = Enumerable.Range(0, 20)
+            .Select(i => new ThroughputBucket(t0.AddMinutes(i), 100, 200))
+            .ToList();
+        await _store.WriteAsync(buckets);
+        await _store.DownsampleAsync(t0.AddMinutes(25));
+
+        var result = await _store.QueryAsync(t0.AddDays(-1), t0.AddDays(6));
+
+        result.Should().HaveCount(2);
+        result[0].TotalUp.Should().Be(1000);
+        result[1].TotalUp.Should().Be(1000);
+    }
+
+    [Fact]
+    public async Task Query_MonthRange_ReadsFromLongTier()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+
+        var buckets = Enumerable.Range(0, 12)
+            .Select(i => new ThroughputBucket(t0.AddMinutes(i * 10), 100, 200))
+            .ToList();
+        await _store.WriteAsync(buckets);
+        await _store.DownsampleAsync(t0.AddHours(3));
+
+        var result = await _store.QueryAsync(t0.AddDays(-15), t0.AddDays(16));
+
+        result.Should().HaveCount(2);
+        result[0].TotalUp.Should().Be(600);
+        result[1].TotalUp.Should().Be(600);
+    }
+
+    [Fact]
+    public async Task Query_YearRange_ReadsFromLongTier()
+    {
+        var t0 = Ts(2024, 6, 15, 10, 0, 0);
+
+        var buckets = Enumerable.Range(0, 12)
+            .Select(i => new ThroughputBucket(t0.AddMinutes(i * 10), 100, 200))
+            .ToList();
+        await _store.WriteAsync(buckets);
+        await _store.DownsampleAsync(t0.AddHours(3));
+
+        var result = await _store.QueryAsync(t0.AddDays(-180), t0.AddDays(185));
+
+        result.Should().HaveCount(2);
+        result[0].TotalUp.Should().Be(600);
+    }
+
+    [Fact]
+    public async Task Query_FiveMinuteRange_StillReturnsLiveTierAfterDownsample()
+    {
+        var now = Ts(2024, 6, 15, 10, 5, 0);
+        var fiveMinAgo = now.AddMinutes(-5);
+
+        var buckets = Enumerable.Range(0, 300)
+            .Select(i => new ThroughputBucket(fiveMinAgo.AddSeconds(i), i * 10, i * 20))
+            .ToList();
+
+        await _store.WriteAsync(buckets);
+        await _store.DownsampleAsync(now);
+
+        var result = await _store.QueryAsync(fiveMinAgo, now);
+
+        result.Should().HaveCount(300);
+        result[0].TotalUp.Should().Be(0);
+        result[299].TotalUp.Should().Be(2990);
     }
 }
