@@ -8,6 +8,7 @@ namespace SapphWire.Core;
 public class NetworkContext
 {
     private readonly ILogger<NetworkContext> _logger;
+    private readonly NetworkNameProvider _nameProvider;
     private NetworkInfo? _current;
 
     public event Action<NetworkInfo>? NetworkChanged;
@@ -20,9 +21,10 @@ public class NetworkContext
         "Hyper-V", "VirtualBox", "VMware"
     };
 
-    public NetworkContext(ILogger<NetworkContext> logger)
+    public NetworkContext(ILogger<NetworkContext> logger, NetworkNameProvider nameProvider)
     {
         _logger = logger;
+        _nameProvider = nameProvider;
     }
 
     public void Refresh()
@@ -48,10 +50,10 @@ public class NetworkContext
                 .Select(a => a.ToString())
                 .ToArray();
 
-            var ssid = GetSsid(iface);
+            var networkName = _nameProvider.GetNetworkName();
 
             var info = new NetworkInfo(
-                Ssid: ssid ?? iface.Name,
+                Ssid: networkName,
                 ConnectionState: iface.OperationalStatus == OperationalStatus.Up ? "Connected" : "Disconnected",
                 GatewayIp: gateway?.Address.ToString() ?? "",
                 GatewayMac: "",
