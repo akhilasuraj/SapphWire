@@ -65,6 +65,14 @@ public class ThroughputPublisher : BackgroundService
             try
             {
                 await _tieredFlowStore.WriteAsync(new[] { bucket });
+            }
+            catch
+            {
+                // Best-effort: don't let live-tier failures block historical persistence
+            }
+
+            try
+            {
                 await _persistence.WriteBucketsAsync(new[] { bucket });
 
                 if (perPid.Count > 0)
