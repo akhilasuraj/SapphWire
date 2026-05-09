@@ -44,7 +44,7 @@ describe("useFirewall", () => {
     mockConn = createMockConnection();
     fetchSpy = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ blockedApps: [] }),
+      json: () => Promise.resolve({ blockedApps: [], isSuspended: false }),
     });
     vi.stubGlobal("fetch", fetchSpy);
   });
@@ -56,6 +56,7 @@ describe("useFirewall", () => {
   it("returns empty blocked apps when connection is null", () => {
     const { result } = renderHook(() => useFirewall(null));
     expect(result.current.state.blockedApps).toEqual([]);
+    expect(result.current.state.isSuspended).toBe(false);
     expect(result.current.state.error).toBeNull();
   });
 
@@ -65,6 +66,7 @@ describe("useFirewall", () => {
       json: () =>
         Promise.resolve({
           blockedApps: [makeBlockedApp()],
+          isSuspended: false,
         }),
     });
 
@@ -108,6 +110,7 @@ describe("useFirewall", () => {
 
     const state: FirewallState = {
       blockedApps: [makeBlockedApp({ appId: "Discord" })],
+      isSuspended: false,
     };
 
     act(() => {
@@ -140,7 +143,7 @@ describe("useFirewall", () => {
   it("blockApp calls POST /api/firewall/block with appId", async () => {
     fetchSpy.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ blockedApps: [] }),
+      json: () => Promise.resolve({ blockedApps: [], isSuspended: false }),
     });
 
     const { result } = renderHook(() =>
@@ -163,7 +166,7 @@ describe("useFirewall", () => {
   it("unblockApp calls POST /api/firewall/unblock with appId", async () => {
     fetchSpy.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ blockedApps: [] }),
+      json: () => Promise.resolve({ blockedApps: [], isSuspended: false }),
     });
 
     const { result } = renderHook(() =>
@@ -186,7 +189,7 @@ describe("useFirewall", () => {
   it("blockExe calls POST /api/firewall/block with appId and exePath", async () => {
     fetchSpy.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ blockedApps: [] }),
+      json: () => Promise.resolve({ blockedApps: [], isSuspended: false }),
     });
 
     const { result } = renderHook(() =>
@@ -209,7 +212,7 @@ describe("useFirewall", () => {
   it("unblockExe calls POST /api/firewall/unblock with appId and exePath", async () => {
     fetchSpy.mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve({ blockedApps: [] }),
+      json: () => Promise.resolve({ blockedApps: [], isSuspended: false }),
     });
 
     const { result } = renderHook(() =>
@@ -233,7 +236,7 @@ describe("useFirewall", () => {
     fetchSpy
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ blockedApps: [] }),
+        json: () => Promise.resolve({ blockedApps: [], isSuspended: false }),
       })
       .mockResolvedValueOnce({
         ok: false,
@@ -260,7 +263,7 @@ describe("useFirewall", () => {
     fetchSpy
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ blockedApps: [] }),
+        json: () => Promise.resolve({ blockedApps: [], isSuspended: false }),
       })
       .mockResolvedValueOnce({
         ok: false,
@@ -269,7 +272,7 @@ describe("useFirewall", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve({ blockedApps: [] }),
+        json: () => Promise.resolve({ blockedApps: [], isSuspended: false }),
       });
 
     const { result } = renderHook(() =>
@@ -349,6 +352,117 @@ describe("useFirewall", () => {
 
     unmount();
 
+    expect(mockConn.off).toHaveBeenCalledWith(
+      "FirewallStateSnapshot",
+      expect.any(Function),
+    );
+    expect(mockConn.off).toHaveBeenCalledWith(
+      "FirewallStateChanged",
+      expect.any(Function),
+    );
+  });
+
+  // === Suspend / Resume tests (Issue #21) ===
+
+  it("suspend calls POST /api/firewall/suspend", async () => {
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ blockedApps: [], isSuspended: true }),
+    });
+
+    const { result } = renderHook(() =>
+      useFirewall(
+        mockConn as unknown as Parameters<typeof useFirewall>[0],
+      ),
+    );
+
+    await act(async () => {
+      await result.current.suspend();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/firewall/suspend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ appId: "" }),
+    });
+  });
+
+  it("resume calls POST /api/firewall/resume", async () => {
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ blockedApps: [], isSuspended: false }),
+    });
+
+    const { result } = renderHook(() =>
+      useFirewall(
+        mockConn as unknown as Parameters<typeof useFirewall>[0],
+      ),
+    );
+
+    await act(async () => {
+      await result.current.resume();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/firewall/resume", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ appId: "" }),
+    });
+  });
+
+  it("updates isSuspended on FirewallStateChanged", () => {
+    const { result } = renderHook(() =>
+      useFirewall(
+        mockConn as unknown as Parameters<typeof useFirewall>[0],
+      ),
+    );
+
+    expect(result.current.state.isSuspended).toBe(false);
+
+    act(() => {
+      mockConn._emit("FirewallStateChanged", {
+        blockedApps: [makeBlockedApp()],
+        isSuspended: true,
+      });
+    });
+
+    expect(result.current.state.isSuspended).toBe(true);
+  });
+
+  it("updates isSuspended on FirewallStateSnapshot", () => {
+    const { result } = renderHook(() =>
+      useFirewall(
+        mockConn as unknown as Parameters<typeof useFirewall>[0],
+      ),
+    );
+
+    act(() => {
+      mockConn._emit("FirewallStateSnapshot", {
+        blockedApps: [],
+        isSuspended: true,
+      });
+    });
+
+    expect(result.current.state.isSuspended).toBe(true);
+  });
+
+  it("cleans up SignalR handlers on unmount even when suspended", () => {
+    const { unmount } = renderHook(() =>
+      useFirewall(
+        mockConn as unknown as Parameters<typeof useFirewall>[0],
+      ),
+    );
+
+    act(() => {
+      mockConn._emit("FirewallStateChanged", {
+        blockedApps: [],
+        isSuspended: true,
+      });
+    });
+
+    unmount();
+
+    expect(mockConn.invoke).toHaveBeenCalledWith("UnsubscribeFirewall");
     expect(mockConn.off).toHaveBeenCalledWith(
       "FirewallStateSnapshot",
       expect.any(Function),

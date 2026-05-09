@@ -122,6 +122,20 @@ public class DashboardHub : Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, "firewall");
     }
 
+    public async Task SuspendFirewall()
+    {
+        _firewall.Suspend();
+        var state = _firewall.GetState();
+        await Clients.Group("firewall").SendAsync("FirewallStateChanged", state);
+    }
+
+    public async Task ResumeFirewall()
+    {
+        _firewall.Resume();
+        var state = _firewall.GetState();
+        await Clients.Group("firewall").SendAsync("FirewallStateChanged", state);
+    }
+
     public async Task<IReadOnlyList<ThroughputBucket>> GetTieredThroughput(
         string fromIso, string toIso)
     {

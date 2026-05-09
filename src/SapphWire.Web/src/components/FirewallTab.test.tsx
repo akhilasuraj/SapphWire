@@ -11,13 +11,15 @@ vi.mock("../useConnections", () => ({
 
 vi.mock("../useFirewall", () => ({
   useFirewall: vi.fn(() => ({
-    state: { blockedApps: [], error: null },
+    state: { blockedApps: [], isSuspended: false, error: null },
     blockApp: vi.fn(() => Promise.resolve()),
     unblockApp: vi.fn(() => Promise.resolve()),
     blockExe: vi.fn(() => Promise.resolve()),
     unblockExe: vi.fn(() => Promise.resolve()),
     isBlocked: () => false,
     isExeBlocked: () => false,
+    suspend: vi.fn(() => Promise.resolve()),
+    resume: vi.fn(() => Promise.resolve()),
   })),
 }));
 
@@ -61,13 +63,15 @@ function makeApp(overrides: Partial<ActiveAppRow> = {}): ActiveAppRow {
 }
 
 const defaultFirewall = {
-  state: { blockedApps: [], error: null },
+  state: { blockedApps: [], isSuspended: false, error: null },
   blockApp: vi.fn(() => Promise.resolve()),
   unblockApp: vi.fn(() => Promise.resolve()),
   blockExe: vi.fn(() => Promise.resolve()),
   unblockExe: vi.fn(() => Promise.resolve()),
   isBlocked: (_appId: string) => false,
   isExeBlocked: (_appId: string, _exePath: string) => false,
+  suspend: vi.fn(() => Promise.resolve()),
+  resume: vi.fn(() => Promise.resolve()),
 };
 
 describe("FirewallTab", () => {
@@ -143,6 +147,7 @@ describe("FirewallTab", () => {
             blockedExePaths: ["C:\\chrome.exe"],
           },
         ],
+        isSuspended: false,
         error: null,
       },
     });
@@ -392,6 +397,7 @@ describe("FirewallTab", () => {
             blockedExePaths: ["C:\\chrome.exe"],
           },
         ],
+        isSuspended: false,
         error: null,
       },
     });
@@ -425,6 +431,7 @@ describe("FirewallTab", () => {
             blockedExePaths: [],
           },
         ],
+        isSuspended: false,
         error: null,
       },
     });
@@ -472,6 +479,7 @@ describe("FirewallTab", () => {
             blockedExePaths: [],
           },
         ],
+        isSuspended: false,
         error: null,
       },
     });
@@ -490,6 +498,7 @@ describe("FirewallTab", () => {
       ...defaultFirewall,
       state: {
         blockedApps: [],
+        isSuspended: false,
         error: "COM error: access denied",
       },
     });
@@ -505,7 +514,7 @@ describe("FirewallTab", () => {
   it("does not display error banner when no error", () => {
     mockUseFirewall.mockReturnValue({
       ...defaultFirewall,
-      state: { blockedApps: [], error: null },
+      state: { blockedApps: [], isSuspended: false, error: null },
     });
 
     render(<FirewallTab connection={null} />);
@@ -592,6 +601,7 @@ describe("FirewallTab", () => {
             blockedExePaths: ["C:\\notepad.exe"],
           },
         ],
+        isSuspended: false,
         error: null,
       },
     });
@@ -604,5 +614,133 @@ describe("FirewallTab", () => {
 
     const blockedSection = screen.getByTestId("blocked-apps-section");
     expect(blockedSection).toHaveTextContent("Notepad");
+  });
+
+  // === Master toggle tests (Issue #21) ===
+
+  it("renders master toggle button", () => {
+    render(<FirewallTab connection={null} />);
+    expect(screen.getByTestId("firewall-master-toggle")).toBeInTheDocument();
+  });
+
+  it("shows ON label and Shielding badge when not suspended", () => {
+    mockUseFirewall.mockReturnValue({
+      ...defaultFirewall,
+      state: { blockedApps: [], isSuspended: false, error: null },
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    expect(screen.getByTestId("firewall-master-toggle")).toHaveTextContent("ON");
+    expect(screen.getByTestId("firewall-badge")).toHaveTextContent("Shielding");
+    expect(screen.getByTestId("firewall-banner-title")).toHaveTextContent("Firewall is on");
+  });
+
+  it("shows OFF label and Off duty badge when suspended", () => {
+    mockUseFirewall.mockReturnValue({
+      ...defaultFirewall,
+      state: { blockedApps: [], isSuspended: true, error: null },
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    expect(screen.getByTestId("firewall-master-toggle")).toHaveTextContent("OFF");
+    expect(screen.getByTestId("firewall-badge")).toHaveTextContent("Off duty");
+    expect(screen.getByTestId("firewall-banner-title")).toHaveTextContent("Firewall is off");
+  });
+
+  it("shows descriptive subtitle when suspended", () => {
+    mockUseFirewall.mockReturnValue({
+      ...defaultFirewall,
+      state: { blockedApps: [], isSuspended: true, error: null },
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    expect(screen.getByTestId("firewall-banner-subtitle")).toHaveTextContent(
+      "Click the toggle to start shielding your network."
+    );
+  });
+
+  it("shows blocked/active counts when enabled", () => {
+    mockUseFirewall.mockReturnValue({
+      ...defaultFirewall,
+      isBlocked: (id: string) => id === "Chrome",
+      state: {
+        blockedApps: [
+          { appId: "Chrome", displayName: "Chrome", blockedExePaths: [] },
+        ],
+        isSuspended: false,
+        error: null,
+      },
+    });
+    mockUseActiveApps.mockReturnValue({
+      apps: [
+        makeApp({ appId: "Chrome" }),
+        makeApp({ appId: "Discord", displayName: "Discord" }),
+      ],
+      sparkHistory: {},
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    expect(screen.getByTestId("firewall-banner-subtitle")).toHaveTextContent(
+      "1 apps blocked"
+    );
+    expect(screen.getByTestId("firewall-banner-subtitle")).toHaveTextContent(
+      "1 active"
+    );
+  });
+
+  it("clicking toggle calls suspend when firewall is on", () => {
+    const suspendFn = vi.fn(() => Promise.resolve());
+    mockUseFirewall.mockReturnValue({
+      ...defaultFirewall,
+      suspend: suspendFn,
+      state: { blockedApps: [], isSuspended: false, error: null },
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    fireEvent.click(screen.getByTestId("firewall-master-toggle"));
+    expect(suspendFn).toHaveBeenCalled();
+  });
+
+  it("clicking toggle calls resume when firewall is off", () => {
+    const resumeFn = vi.fn(() => Promise.resolve());
+    mockUseFirewall.mockReturnValue({
+      ...defaultFirewall,
+      resume: resumeFn,
+      state: { blockedApps: [], isSuspended: true, error: null },
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    fireEvent.click(screen.getByTestId("firewall-master-toggle"));
+    expect(resumeFn).toHaveBeenCalled();
+  });
+
+  it("blocked apps count persists when firewall is suspended", () => {
+    mockUseFirewall.mockReturnValue({
+      ...defaultFirewall,
+      isBlocked: (id: string) => id === "Chrome",
+      state: {
+        blockedApps: [
+          { appId: "Chrome", displayName: "Chrome", blockedExePaths: [] },
+        ],
+        isSuspended: true,
+        error: null,
+      },
+    });
+    mockUseActiveApps.mockReturnValue({
+      apps: [makeApp({ appId: "Chrome" })],
+      sparkHistory: {},
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    const blockedSection = screen.getByTestId("blocked-apps-section");
+    expect(blockedSection).toHaveTextContent("Chrome");
+    expect(screen.getByTestId("firewall-badge")).toHaveTextContent("Off duty");
   });
 });

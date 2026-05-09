@@ -332,6 +332,8 @@ export default function FirewallTab({ connection }: Props) {
     unblockExe,
     isBlocked,
     isExeBlocked,
+    suspend,
+    resume,
   } = useFirewall(connection);
   const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
   const connections = useConnections(connection, expandedAppId);
@@ -344,13 +346,22 @@ export default function FirewallTab({ connection }: Props) {
   );
 
   const totalBlockedCount = blockedApps.length + blockedOnlyFromState.length;
-  const enabled = totalBlockedCount > 0;
+  const enabled = !firewallState.isSuspended;
+
+  const handleToggle = () => {
+    if (enabled) {
+      suspend();
+    } else {
+      resume();
+    }
+  };
 
   return (
     <div className="page-fade">
       <div className="section-head">
         <h1 className="section-title">Firewall</h1>
         <span
+          data-testid="firewall-badge"
           className="sticker-tag"
           style={{
             background: enabled ? "var(--mint)" : "var(--coral)",
@@ -416,6 +427,7 @@ export default function FirewallTab({ connection }: Props) {
               />
               <div>
                 <div
+                  data-testid="firewall-banner-title"
                   style={{
                     fontFamily: "Fredoka",
                     fontSize: 22,
@@ -423,15 +435,62 @@ export default function FirewallTab({ connection }: Props) {
                     marginBottom: 2,
                   }}
                 >
-                  Firewall is {enabled ? "shielding" : "off duty"}
+                  Firewall is {enabled ? "on" : "off"}
                 </div>
-                <div className="row-sub">
+                <div className="row-sub" data-testid="firewall-banner-subtitle">
                   {enabled
                     ? `${totalBlockedCount} apps blocked · ${activeApps.length} active`
-                    : `${activeApps.length} active apps · 0 blocked`}
+                    : "Click the toggle to start shielding your network."}
                 </div>
               </div>
             </div>
+            <button
+              data-testid="firewall-master-toggle"
+              onClick={handleToggle}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <span style={{
+                fontFamily: "Fredoka",
+                fontWeight: 600,
+                fontSize: 14,
+                color: "var(--ink)",
+              }}>
+                {enabled ? "ON" : "OFF"}
+              </span>
+              <div
+                style={{
+                  width: 48,
+                  height: 26,
+                  borderRadius: 13,
+                  background: enabled ? "var(--mint)" : "var(--ink-mute)",
+                  border: "2.5px solid var(--ink)",
+                  position: "relative",
+                  transition: "background 0.2s",
+                }}
+              >
+                <div
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: "50%",
+                    background: "var(--paper)",
+                    border: "2px solid var(--ink)",
+                    position: "absolute",
+                    top: 1.5,
+                    left: enabled ? 24 : 2,
+                    transition: "left 0.2s",
+                  }}
+                />
+              </div>
+            </button>
           </div>
         </div>
       </div>
