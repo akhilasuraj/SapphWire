@@ -124,13 +124,4 @@ public class NetworkContext
             desc.Contains(p, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string? GetSsid(NetworkInterface iface)
-    {
-        if (iface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211)
-            return null;
-        // Real implementation uses Wlanapi via P/Invoke:
-        // WlanOpenHandle → WlanGetAvailableNetworkList → match connected SSID
-        // Stubbed for non-Windows builds
-        return null;
-    }
 }

@@ -24,9 +24,7 @@ public class NetworkNameProvider
 
         if (physical.Count > 0)
         {
-            var chosen = physical.Count > 1
-                ? physical.FirstOrDefault(a => a.HasDefaultRoute) ?? physical[0]
-                : physical[0];
+            var chosen = physical.FirstOrDefault(a => a.HasDefaultRoute) ?? physical[0];
 
             if (chosen.InterfaceType == NetworkInterfaceType.Wireless80211
                 && !string.IsNullOrEmpty(chosen.Ssid))
