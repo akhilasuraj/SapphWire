@@ -58,10 +58,13 @@ try
 
     // Things tab services
     builder.Services.AddSingleton<OuiDatabase>();
+    builder.Services.AddSingleton<INetworkAdapterEnumerator, WindowsNetworkAdapterEnumerator>();
+    builder.Services.AddSingleton<NetworkNameProvider>();
     builder.Services.AddSingleton<NetworkContext>();
     builder.Services.AddSingleton<DeviceTracker>(sp =>
         new DeviceTracker(sp.GetRequiredService<OuiDatabase>()));
     builder.Services.AddSingleton<SubnetScanner>();
+    builder.Services.AddSingleton<IScanCoordinator, ScanCoordinator>();
     builder.Services.AddSingleton<IDiscoverySource, ArpDiscovery>();
     builder.Services.AddSingleton<IDiscoverySource, MdnsDiscovery>();
     builder.Services.AddSingleton<IDiscoverySource, SsdpDiscovery>();

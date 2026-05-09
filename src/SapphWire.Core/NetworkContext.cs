@@ -8,21 +8,17 @@ namespace SapphWire.Core;
 public class NetworkContext
 {
     private readonly ILogger<NetworkContext> _logger;
+    private readonly NetworkNameProvider _nameProvider;
     private NetworkInfo? _current;
 
     public event Action<NetworkInfo>? NetworkChanged;
 
     public NetworkInfo? Current => _current;
 
-    private static readonly string[] VirtualPrefixes =
-    {
-        "Tunnel", "Loopback", "vEthernet", "WSL", "Docker",
-        "Hyper-V", "VirtualBox", "VMware"
-    };
-
-    public NetworkContext(ILogger<NetworkContext> logger)
+    public NetworkContext(ILogger<NetworkContext> logger, NetworkNameProvider nameProvider)
     {
         _logger = logger;
+        _nameProvider = nameProvider;
     }
 
     public void Refresh()
@@ -48,10 +44,10 @@ public class NetworkContext
                 .Select(a => a.ToString())
                 .ToArray();
 
-            var ssid = GetSsid(iface);
+            var networkName = _nameProvider.GetNetworkName();
 
             var info = new NetworkInfo(
-                Ssid: ssid ?? iface.Name,
+                Ssid: networkName,
                 ConnectionState: iface.OperationalStatus == OperationalStatus.Up ? "Connected" : "Disconnected",
                 GatewayIp: gateway?.Address.ToString() ?? "",
                 GatewayMac: "",
@@ -107,28 +103,9 @@ public class NetworkContext
         return NetworkInterface.GetAllNetworkInterfaces()
             .Where(i => i.OperationalStatus == OperationalStatus.Up)
             .Where(i => i.NetworkInterfaceType != NetworkInterfaceType.Loopback)
-            .Where(i => !IsVirtualInterface(i))
+            .Where(i => !VirtualInterfaceDetector.IsVirtual(i))
             .Where(i => i.GetIPProperties().GatewayAddresses.Count > 0)
             .OrderByDescending(i => i.Speed)
             .FirstOrDefault();
-    }
-
-    private static bool IsVirtualInterface(NetworkInterface iface)
-    {
-        var name = iface.Name;
-        var desc = iface.Description;
-        return VirtualPrefixes.Any(p =>
-            name.StartsWith(p, StringComparison.OrdinalIgnoreCase) ||
-            desc.Contains(p, StringComparison.OrdinalIgnoreCase));
-    }
-
-    private static string? GetSsid(NetworkInterface iface)
-    {
-        if (iface.NetworkInterfaceType != NetworkInterfaceType.Wireless80211)
-            return null;
-        // Real implementation uses Wlanapi via P/Invoke:
-        // WlanOpenHandle → WlanGetAvailableNetworkList → match connected SSID
-        // Stubbed for non-Windows builds
-        return null;
     }
 }

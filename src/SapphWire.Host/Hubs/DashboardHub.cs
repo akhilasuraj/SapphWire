@@ -12,7 +12,7 @@ public class DashboardHub : Hub
     private readonly FlowAggregator _aggregator;
     private readonly DeviceTracker _deviceTracker;
     private readonly NetworkContext _networkContext;
-    private readonly SubnetScanner _scanner;
+    private readonly IScanCoordinator _scanCoordinator;
     private readonly SettingsManager _settings;
     private readonly IAutostart _autostart;
     private readonly INetworkCapture _capture;
@@ -25,7 +25,7 @@ public class DashboardHub : Hub
         FlowAggregator aggregator,
         DeviceTracker deviceTracker,
         NetworkContext networkContext,
-        SubnetScanner scanner,
+        IScanCoordinator scanCoordinator,
         SettingsManager settings,
         IAutostart autostart,
         INetworkCapture capture,
@@ -37,7 +37,7 @@ public class DashboardHub : Hub
         _aggregator = aggregator;
         _deviceTracker = deviceTracker;
         _networkContext = networkContext;
-        _scanner = scanner;
+        _scanCoordinator = scanCoordinator;
         _settings = settings;
         _autostart = autostart;
         _capture = capture;
@@ -193,7 +193,7 @@ public class DashboardHub : Hub
                 networkInfo.LocalIp,
                 networkInfo.SubnetMask,
             } : (object?)null,
-            Scanning = _scanner.IsScanning,
+            Scanning = _scanCoordinator.IsScanning,
             LastScanTime = (string?)null,
         };
 
@@ -207,15 +207,15 @@ public class DashboardHub : Hub
 
     public async Task StartScan()
     {
-        if (_scanner.IsScanning) return;
+        if (_scanCoordinator.IsScanning) return;
 
-        _scanner.ProgressChanged += OnScanProgress;
-        _scanner.ScanComplete += OnScanComplete;
+        _scanCoordinator.ProgressChanged += OnScanProgress;
+        _scanCoordinator.ScanComplete += OnScanComplete;
 
-        _ = _scanner.ScanAsync().ContinueWith(_ =>
+        _ = _scanCoordinator.StartScanAsync().ContinueWith(_ =>
         {
-            _scanner.ProgressChanged -= OnScanProgress;
-            _scanner.ScanComplete -= OnScanComplete;
+            _scanCoordinator.ProgressChanged -= OnScanProgress;
+            _scanCoordinator.ScanComplete -= OnScanComplete;
         });
 
         await Clients.Group("things").SendAsync("ScanProgress", new
