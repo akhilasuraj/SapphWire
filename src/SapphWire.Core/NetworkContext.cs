@@ -15,12 +15,6 @@ public class NetworkContext
 
     public NetworkInfo? Current => _current;
 
-    private static readonly string[] VirtualPrefixes =
-    {
-        "Tunnel", "Loopback", "vEthernet", "WSL", "Docker",
-        "Hyper-V", "VirtualBox", "VMware"
-    };
-
     public NetworkContext(ILogger<NetworkContext> logger, NetworkNameProvider nameProvider)
     {
         _logger = logger;
@@ -109,19 +103,9 @@ public class NetworkContext
         return NetworkInterface.GetAllNetworkInterfaces()
             .Where(i => i.OperationalStatus == OperationalStatus.Up)
             .Where(i => i.NetworkInterfaceType != NetworkInterfaceType.Loopback)
-            .Where(i => !IsVirtualInterface(i))
+            .Where(i => !VirtualInterfaceDetector.IsVirtual(i))
             .Where(i => i.GetIPProperties().GatewayAddresses.Count > 0)
             .OrderByDescending(i => i.Speed)
             .FirstOrDefault();
     }
-
-    private static bool IsVirtualInterface(NetworkInterface iface)
-    {
-        var name = iface.Name;
-        var desc = iface.Description;
-        return VirtualPrefixes.Any(p =>
-            name.StartsWith(p, StringComparison.OrdinalIgnoreCase) ||
-            desc.Contains(p, StringComparison.OrdinalIgnoreCase));
-    }
-
 }
