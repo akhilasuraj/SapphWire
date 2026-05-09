@@ -10,6 +10,7 @@ public class DashboardHub : Hub
     private readonly ITieredFlowStore _tieredFlowStore;
     private readonly IFirewall _firewall;
     private readonly FlowAggregator _aggregator;
+    private readonly AppUsageRanker _appUsageRanker;
     private readonly DeviceTracker _deviceTracker;
     private readonly NetworkContext _networkContext;
     private readonly IScanCoordinator _scanCoordinator;
@@ -23,6 +24,7 @@ public class DashboardHub : Hub
         ITieredFlowStore tieredFlowStore,
         IFirewall firewall,
         FlowAggregator aggregator,
+        AppUsageRanker appUsageRanker,
         DeviceTracker deviceTracker,
         NetworkContext networkContext,
         IScanCoordinator scanCoordinator,
@@ -35,6 +37,7 @@ public class DashboardHub : Hub
         _tieredFlowStore = tieredFlowStore;
         _firewall = firewall;
         _aggregator = aggregator;
+        _appUsageRanker = appUsageRanker;
         _deviceTracker = deviceTracker;
         _networkContext = networkContext;
         _scanCoordinator = scanCoordinator;
@@ -108,6 +111,11 @@ public class DashboardHub : Hub
     public async Task UnsubscribeConnections(string appId)
     {
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"connections/{appId}");
+    }
+
+    public Task<IReadOnlyList<RankedAppRow>> GetRankedApps(bool includeInstalled)
+    {
+        return Task.FromResult(_appUsageRanker.RankedApps(includeInstalled));
     }
 
     public async Task SubscribeFirewall()

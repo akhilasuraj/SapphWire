@@ -106,6 +106,12 @@ public class SqlitePersistence : IPersistence
             CREATE TABLE IF NOT EXISTS blocked_parents (
                 app_id TEXT PRIMARY KEY
             );
+
+            CREATE TABLE IF NOT EXISTS app_usage (
+                app_id          TEXT PRIMARY KEY,
+                cumulative_bytes INTEGER NOT NULL,
+                last_seen       INTEGER NOT NULL
+            );
             """;
         await schemaCmd.ExecuteNonQueryAsync();
     }
@@ -853,6 +859,70 @@ public class SqlitePersistence : IPersistence
         }
     }
 
+    public async Task SaveAppUsageAsync(IReadOnlyDictionary<string, (long CumulativeBytes, DateTimeOffset LastSeen)> entries)
+    {
+        if (entries.Count == 0) return;
+
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var transaction = _connection.BeginTransaction();
+
+            using var cmd = _connection.CreateCommand();
+            cmd.Transaction = transaction;
+            cmd.CommandText = """
+                INSERT INTO app_usage (app_id, cumulative_bytes, last_seen)
+                VALUES (@id, @bytes, @seen)
+                ON CONFLICT(app_id) DO UPDATE SET
+                    cumulative_bytes = excluded.cumulative_bytes,
+                    last_seen = excluded.last_seen;
+                """;
+
+            var idParam = cmd.Parameters.Add("@id", SqliteType.Text);
+            var bytesParam = cmd.Parameters.Add("@bytes", SqliteType.Integer);
+            var seenParam = cmd.Parameters.Add("@seen", SqliteType.Integer);
+
+            foreach (var (appId, (cumulative, lastSeen)) in entries)
+            {
+                idParam.Value = appId;
+                bytesParam.Value = cumulative;
+                seenParam.Value = lastSeen.ToUnixTimeSeconds();
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            transaction.Commit();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task<Dictionary<string, (long CumulativeBytes, DateTimeOffset LastSeen)>> LoadAppUsageAsync()
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "SELECT app_id, cumulative_bytes, last_seen FROM app_usage;";
+
+            var results = new Dictionary<string, (long, DateTimeOffset)>(StringComparer.OrdinalIgnoreCase);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var appId = reader.GetString(0);
+                var bytes = reader.GetInt64(1);
+                var lastSeen = DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(2));
+                results[appId] = (bytes, lastSeen);
+            }
+            return results;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
     public async Task ClearDataAsync()
     {
         await _semaphore.WaitAsync();
@@ -867,6 +937,7 @@ public class SqlitePersistence : IPersistence
                 DELETE FROM flows_1s_detail;
                 DELETE FROM flows_1h_detail;
                 DELETE FROM alerts;
+                DELETE FROM app_usage;
                 VACUUM;
                 """;
             await cmd.ExecuteNonQueryAsync();
