@@ -790,6 +790,21 @@ public class SqlitePersistence : IPersistence
         }
     }
 
+    public async Task DeleteAllAlertsAsync()
+    {
+        await _semaphore.WaitAsync();
+        try
+        {
+            using var cmd = _connection.CreateCommand();
+            cmd.CommandText = "DELETE FROM alerts;";
+            await cmd.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
     public async Task<IReadOnlyList<string>> GetKnownAlertAppsAsync()
     {
         await _semaphore.WaitAsync();

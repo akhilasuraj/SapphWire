@@ -68,6 +68,28 @@ public class DashboardHub : Hub
         await _persistence.DeleteAlertAsync(alertId);
     }
 
+    public async Task DeleteAllAlerts()
+    {
+        await _persistence.DeleteAllAlertsAsync();
+    }
+
+    public Task<bool> CheckFileExists(string exePath)
+    {
+        return Task.FromResult(File.Exists(exePath));
+    }
+
+    public Task OpenFileLocation(string exePath)
+    {
+        if (!File.Exists(exePath))
+            return Task.CompletedTask;
+
+        var psi = new ProcessStartInfo("explorer.exe");
+        psi.ArgumentList.Add("/select,");
+        psi.ArgumentList.Add(exePath);
+        Process.Start(psi);
+        return Task.CompletedTask;
+    }
+
     public async Task Ping()
     {
         await Clients.Caller.SendAsync("Pong");

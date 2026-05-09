@@ -184,6 +184,12 @@ try
         return Results.Ok();
     });
 
+    app.MapDelete("/api/alerts", async (IPersistence persistence) =>
+    {
+        await persistence.DeleteAllAlertsAsync();
+        return Results.Ok();
+    });
+
     app.MapGet("/api/settings", (SettingsManager mgr) => mgr.Current);
 
     app.Lifetime.ApplicationStarted.Register(() =>

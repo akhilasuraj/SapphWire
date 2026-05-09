@@ -20,6 +20,12 @@ export default function App() {
   const { status, connection } = useSignalR(HUB_URL);
   const [activeTab, setActiveTab] = useState<TabName>("Graph");
   const [showSettings, setShowSettings] = useState(false);
+  const [firewallHighlightApp, setFirewallHighlightApp] = useState<string | null>(null);
+
+  const navigateToFirewall = (appName: string) => {
+    setFirewallHighlightApp(appName);
+    setActiveTab("Firewall");
+  };
 
   const connectedConnection = status === "connected" ? connection : null;
   const { errors, dismiss } = useErrors(connectedConnection);
@@ -34,12 +40,12 @@ export default function App() {
       case "Things":
         return <ThingsTab connection={connectedConnection} />;
       case "Firewall":
-        return <FirewallTab connection={connectedConnection} />;
+        return <FirewallTab connection={connectedConnection} highlightAppId={firewallHighlightApp} onHighlightHandled={() => setFirewallHighlightApp(null)} />;
       case "Alerts":
         return (
           <AlertsTab
             connection={connectedConnection}
-            onNavigateToAlert={() => {}}
+            onNavigateToFirewall={navigateToFirewall}
           />
         );
     }

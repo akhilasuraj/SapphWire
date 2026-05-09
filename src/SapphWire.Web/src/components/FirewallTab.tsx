@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 import { useActiveApps, type ActiveAppRow } from "../useActiveApps";
 import { useConnections, type ConnectionDetail } from "../useConnections";
@@ -9,6 +9,8 @@ import { FlagChip } from "./ui/FlagChip";
 
 interface Props {
   connection: HubConnection | null;
+  highlightAppId?: string | null;
+  onHighlightHandled?: () => void;
 }
 
 function formatRate(bytes: number): string {
@@ -322,7 +324,7 @@ function CollapsibleSection({
   );
 }
 
-export default function FirewallTab({ connection }: Props) {
+export default function FirewallTab({ connection, highlightAppId, onHighlightHandled }: Props) {
   const { apps, sparkHistory } = useActiveApps(connection);
   const {
     state: firewallState,
@@ -335,6 +337,17 @@ export default function FirewallTab({ connection }: Props) {
   } = useFirewall(connection);
   const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
   const connections = useConnections(connection, expandedAppId);
+
+  useEffect(() => {
+    if (highlightAppId) {
+      setExpandedAppId(highlightAppId);
+      onHighlightHandled?.();
+      setTimeout(() => {
+        const el = document.querySelector(`[data-testid="app-row-${highlightAppId}"]`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  }, [highlightAppId, onHighlightHandled]);
 
   const blockedApps = apps.filter((a) => isBlocked(a.appId));
   const activeApps = apps.filter((a) => !isBlocked(a.appId));
