@@ -52,6 +52,28 @@ function UsageRowItem({
   const pct = maxBytes > 0 ? (total / maxBytes) * 100 : 0;
   const stickerColor = colorFromString(row.name);
 
+  let sticker: React.ReactNode;
+  if (column === "middle" && showFavicon) {
+    sticker = (
+      <img
+        data-testid={`favicon-${row.name}`}
+        src={`/api/favicons/${encodeURIComponent(row.name)}`}
+        alt=""
+        style={{ width: 16, height: 16, flexShrink: 0 }}
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = "";
+          (e.target as HTMLImageElement).style.display = "none";
+        }}
+      />
+    );
+  } else if (column === "middle") {
+    sticker = <Sticker color={stickerColor} size="sm" glyph={HostGlyph} />;
+  } else if (column === "right") {
+    sticker = <Sticker color={stickerColor} size="sm" glyph={TrafficGlyph} />;
+  } else {
+    sticker = <LetterSticker name={row.name} color={stickerColor} size="sm" />;
+  }
+
   return (
     <div
       onClick={onClick}
@@ -69,24 +91,7 @@ function UsageRowItem({
         borderRadius: 8,
       }}
     >
-      {column === "middle" && showFavicon ? (
-        <img
-          data-testid={`favicon-${row.name}`}
-          src={`/api/favicons/${encodeURIComponent(row.name)}`}
-          alt=""
-          style={{ width: 16, height: 16, flexShrink: 0 }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = "";
-            (e.target as HTMLImageElement).style.display = "none";
-          }}
-        />
-      ) : column === "middle" ? (
-        <Sticker color={stickerColor} size="sm" glyph={HostGlyph} />
-      ) : column === "right" ? (
-        <Sticker color={stickerColor} size="sm" glyph={TrafficGlyph} />
-      ) : (
-        <LetterSticker name={row.name} color={stickerColor} size="sm" />
-      )}
+      {sticker}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
