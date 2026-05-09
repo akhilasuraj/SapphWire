@@ -38,6 +38,8 @@ try
     builder.Services.AddSingleton<IProcessSource, WindowsProcessSource>();
     builder.Services.AddSingleton<IProcessResolver, ProcessResolver>();
     builder.Services.AddSingleton<IDnsResolver, PassthroughDnsResolver>();
+    builder.Services.AddSingleton<IDnsSource, SystemDnsSource>();
+    builder.Services.AddSingleton<IHostnameResolver, HostnameResolver>();
     builder.Services.AddSingleton<IGeoIp, NullGeoIp>();
     builder.Services.AddSingleton<IPersistence>(
         _ => new SqlitePersistence(SqlitePersistence.GetDefaultConnectionString()));

@@ -11,8 +11,9 @@ import {
   type SparklinePoint,
 } from "../useUsageData";
 import { useNetworkScope, type NetworkScope } from "../useNetworkScope";
+import { useHostnames } from "../useHostnames";
 import { LetterSticker, Sticker, colorFromString } from "./ui/Sticker";
-import { HostGlyph } from "./ui/icons";
+import { HostGlyph, TrafficGlyph } from "./ui/icons";
 
 interface Props {
   connection: HubConnection | null;
@@ -35,6 +36,7 @@ function formatBytes(bytes: number): string {
 
 function UsageRowItem({
   row,
+  displayName,
   maxBytes,
   isSelected,
   onClick,
@@ -42,20 +44,20 @@ function UsageRowItem({
   showFavicon,
 }: {
   row: UsageRow;
+  displayName?: string;
   maxBytes: number;
   isSelected: boolean;
   onClick: () => void;
-  column: "left" | "middle";
+  column: "left" | "middle" | "right";
   showFavicon: boolean;
 }) {
   const total = row.bytesUp + row.bytesDown;
   const pct = maxBytes > 0 ? (total / maxBytes) * 100 : 0;
+  const label = displayName || row.name;
   const stickerColor = colorFromString(row.name);
 
-  let sticker;
-  if (column === "left") {
-    sticker = <LetterSticker name={row.name} color={stickerColor} size="sm" />;
-  } else if (showFavicon) {
+  let sticker: React.ReactNode;
+  if (column === "middle" && showFavicon) {
     sticker = (
       <img
         data-testid={`favicon-${row.name}`}
@@ -68,8 +70,12 @@ function UsageRowItem({
         }}
       />
     );
-  } else {
+  } else if (column === "middle") {
     sticker = <Sticker color={stickerColor} size="sm" glyph={HostGlyph} />;
+  } else if (column === "right") {
+    sticker = <Sticker color={stickerColor} size="sm" glyph={TrafficGlyph} />;
+  } else {
+    sticker = <LetterSticker name={row.name} color={stickerColor} size="sm" />;
   }
 
   return (
@@ -101,7 +107,7 @@ function UsageRowItem({
             color: "var(--ink)",
           }}
         >
-          {row.name}
+          {label}
         </div>
         <div
           data-testid={`usage-bar-${column}-${row.name}`}
@@ -145,6 +151,7 @@ function UsageColumn({
   column,
   showFavicon,
   dotColor,
+  hostnames,
 }: {
   testId: string;
   header: string;
@@ -152,9 +159,10 @@ function UsageColumn({
   rows: UsageRow[];
   selectedNames: string[];
   onToggle: (name: string) => void;
-  column: "left" | "middle";
+  column: "left" | "middle" | "right";
   showFavicon: boolean;
   dotColor: string;
+  hostnames?: Record<string, string>;
 }) {
   const maxBytes =
     rows.length > 0
@@ -180,6 +188,7 @@ function UsageColumn({
             <div style={rowStyle}>
               <UsageRowItem
                 row={rows[index]}
+                displayName={hostnames?.[rows[index].name]}
                 maxBytes={maxBytes}
                 isSelected={selectedNames.includes(rows[index].name)}
                 onClick={() => onToggle(rows[index].name)}
@@ -489,6 +498,9 @@ export default function UsageTab({ connection }: Props) {
     return data.middle.filter((r) => r.name.toLowerCase().includes(q));
   }, [data.middle, search]);
 
+  const middleIps = data.middle.map((r) => r.name);
+  const hostnames = useHostnames(connection, middleIps);
+
   const handlePeriodChange = useCallback((newPeriod: UsagePeriod) => {
     setPeriod(newPeriod);
     setOffset(0);
@@ -500,7 +512,7 @@ export default function UsageTab({ connection }: Props) {
   }, []);
 
   const toggleFilter = useCallback(
-    (column: "left" | "middle", name: string) => {
+    (column: "left" | "middle" | "right", name: string) => {
       setFilters((prev) => {
         const current = prev[column];
         const next = current.includes(name)
@@ -607,6 +619,7 @@ export default function UsageTab({ connection }: Props) {
           column="middle"
           showFavicon={true}
           dotColor={COLUMN_DOTS.middle}
+          hostnames={hostnames}
         />
       </div>
 

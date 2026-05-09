@@ -16,6 +16,7 @@ public class DashboardHub : Hub
     private readonly SettingsManager _settings;
     private readonly IAutostart _autostart;
     private readonly INetworkCapture _capture;
+    private readonly IHostnameResolver _hostnameResolver;
 
     public DashboardHub(
         IPersistence persistence,
@@ -27,7 +28,8 @@ public class DashboardHub : Hub
         SubnetScanner scanner,
         SettingsManager settings,
         IAutostart autostart,
-        INetworkCapture capture)
+        INetworkCapture capture,
+        IHostnameResolver hostnameResolver)
     {
         _persistence = persistence;
         _tieredFlowStore = tieredFlowStore;
@@ -39,6 +41,7 @@ public class DashboardHub : Hub
         _settings = settings;
         _autostart = autostart;
         _capture = capture;
+        _hostnameResolver = hostnameResolver;
     }
 
     public async Task SubscribeAlerts()
@@ -159,6 +162,15 @@ public class DashboardHub : Hub
         }
 
         return await _persistence.GetUsageAsync(from, to, groupBy, filters, scope, hostSubnets);
+    }
+
+    public async Task<Dictionary<string, string>> ResolveHostnames(string[] ips)
+    {
+        var pairs = await Task.WhenAll(
+            ips.Select(async ip => (ip, hostname: await _hostnameResolver.ResolveAsync(ip))));
+        return pairs
+            .Where(p => p.hostname != null)
+            .ToDictionary(p => p.ip, p => p.hostname!);
     }
 
     public async Task SubscribeThings()
