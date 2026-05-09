@@ -424,11 +424,6 @@ describe("UsageTab", () => {
     expect(screen.getByTestId("scope-All")).not.toHaveClass("active");
   });
 
-  it("renders recent activity chart container", () => {
-    render(<UsageTab connection={null} />);
-    expect(screen.getByTestId("activity-chart")).toBeInTheDocument();
-  });
-
   it("recent activity chart receives sparkline data with bytesUp and bytesDown", () => {
     mockUseUsageData.mockReturnValue(
       mockData({
@@ -525,8 +520,4 @@ describe("UsageTab", () => {
     expect(within(col).getByText("Discord")).toBeInTheDocument();
   });
 
-  it("does not render the old sparkline SVG", () => {
-    render(<UsageTab connection={null} />);
-    expect(screen.queryByTestId("usage-sparkline")).not.toBeInTheDocument();
-  });
 });

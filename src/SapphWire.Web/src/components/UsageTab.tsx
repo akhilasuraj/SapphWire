@@ -52,6 +52,26 @@ function UsageRowItem({
   const pct = maxBytes > 0 ? (total / maxBytes) * 100 : 0;
   const stickerColor = colorFromString(row.name);
 
+  let sticker;
+  if (column === "left") {
+    sticker = <LetterSticker name={row.name} color={stickerColor} size="sm" />;
+  } else if (showFavicon) {
+    sticker = (
+      <img
+        data-testid={`favicon-${row.name}`}
+        src={`/api/favicons/${encodeURIComponent(row.name)}`}
+        alt=""
+        style={{ width: 16, height: 16, flexShrink: 0 }}
+        onError={(e) => {
+          (e.target as HTMLImageElement).src = "";
+          (e.target as HTMLImageElement).style.display = "none";
+        }}
+      />
+    );
+  } else {
+    sticker = <Sticker color={stickerColor} size="sm" glyph={HostGlyph} />;
+  }
+
   return (
     <div
       onClick={onClick}
@@ -69,22 +89,7 @@ function UsageRowItem({
         borderRadius: 8,
       }}
     >
-      {column === "middle" && showFavicon ? (
-        <img
-          data-testid={`favicon-${row.name}`}
-          src={`/api/favicons/${encodeURIComponent(row.name)}`}
-          alt=""
-          style={{ width: 16, height: 16, flexShrink: 0 }}
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = "";
-            (e.target as HTMLImageElement).style.display = "none";
-          }}
-        />
-      ) : column === "middle" ? (
-        <Sticker color={stickerColor} size="sm" glyph={HostGlyph} />
-      ) : (
-        <LetterSticker name={row.name} color={stickerColor} size="sm" />
-      )}
+      {sticker}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
