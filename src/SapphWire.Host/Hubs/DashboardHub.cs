@@ -144,11 +144,21 @@ public class DashboardHub : Hub
     }
 
     public async Task<UsageResult> GetUsage(
-        string fromIso, string toIso, string groupBy, UsageFilters filters)
+        string fromIso, string toIso, string groupBy, UsageFilters filters,
+        string scope = "All")
     {
         var from = DateTimeOffset.Parse(fromIso);
         var to = DateTimeOffset.Parse(toIso);
-        return await _persistence.GetUsageAsync(from, to, groupBy, filters);
+
+        IReadOnlyList<HostSubnet>? hostSubnets = null;
+        if (scope is "Lan" or "Wan")
+        {
+            var net = _networkContext.Current;
+            if (net != null)
+                hostSubnets = new[] { new HostSubnet(net.LocalIp, net.SubnetMask) };
+        }
+
+        return await _persistence.GetUsageAsync(from, to, groupBy, filters, scope, hostSubnets);
     }
 
     public async Task SubscribeThings()

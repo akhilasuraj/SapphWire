@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { HubConnection } from "@microsoft/signalr";
+import type { NetworkScope } from "./useNetworkScope";
 
 export type UsagePeriod = "Day" | "Week" | "Month";
 export type UsagePill = "Apps" | "Publishers" | "Traffic";
@@ -88,6 +89,7 @@ export function useUsageData(
   offset: number,
   pill: UsagePill,
   filters: UsageFilters,
+  scope: NetworkScope = "All",
 ): UsageData {
   const [data, setData] = useState<UsageData>(EMPTY);
 
@@ -107,10 +109,11 @@ export function useUsageData(
         to.toISOString(),
         groupBy,
         filters,
+        scope,
       )
       .then((result: UsageData) => setData(result))
       .catch(() => {});
-  }, [connection, period, offset, pill, filters]);
+  }, [connection, period, offset, pill, filters, scope]);
 
   return data;
 }

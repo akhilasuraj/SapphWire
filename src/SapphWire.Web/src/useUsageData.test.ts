@@ -7,6 +7,7 @@ import {
   type UsageFilters,
   type UsageData,
 } from "./useUsageData";
+import type { NetworkScope } from "./useNetworkScope";
 
 function createMockConnection() {
   const handlers: Record<string, (...args: unknown[]) => void> = {};
@@ -61,6 +62,7 @@ describe("useUsageData", () => {
         expect.any(String),
         "App",
         NO_FILTERS,
+        "All",
       );
     });
   });
@@ -78,6 +80,7 @@ describe("useUsageData", () => {
         expect.any(String),
         "Publisher",
         NO_FILTERS,
+        "All",
       );
     });
   });
@@ -95,6 +98,7 @@ describe("useUsageData", () => {
         expect.any(String),
         "Protocol",
         NO_FILTERS,
+        "All",
       );
     });
   });
@@ -225,6 +229,7 @@ describe("useUsageData", () => {
         expect.any(String),
         "App",
         filters,
+        "All",
       );
     });
   });
@@ -284,5 +289,80 @@ describe("useUsageData", () => {
     const to = new Date(toIso as string);
     expect(from.getDate()).toBe(1);
     expect(to.getMonth()).toBe(from.getMonth() + 1 > 11 ? 0 : from.getMonth() + 1);
+  });
+
+  it("passes All scope by default", async () => {
+    const conn = createMockConnection();
+    renderHook(() =>
+      useUsageData(conn as unknown as Conn, "Day", 0, "Apps", NO_FILTERS),
+    );
+
+    await waitFor(() => {
+      expect(conn.invoke).toHaveBeenCalledWith(
+        "GetUsage",
+        expect.any(String),
+        expect.any(String),
+        "App",
+        NO_FILTERS,
+        "All",
+      );
+    });
+  });
+
+  it("passes Lan scope to hub", async () => {
+    const conn = createMockConnection();
+    renderHook(() =>
+      useUsageData(conn as unknown as Conn, "Day", 0, "Apps", NO_FILTERS, "Lan"),
+    );
+
+    await waitFor(() => {
+      expect(conn.invoke).toHaveBeenCalledWith(
+        "GetUsage",
+        expect.any(String),
+        expect.any(String),
+        "App",
+        NO_FILTERS,
+        "Lan",
+      );
+    });
+  });
+
+  it("passes Wan scope to hub", async () => {
+    const conn = createMockConnection();
+    renderHook(() =>
+      useUsageData(conn as unknown as Conn, "Day", 0, "Apps", NO_FILTERS, "Wan"),
+    );
+
+    await waitFor(() => {
+      expect(conn.invoke).toHaveBeenCalledWith(
+        "GetUsage",
+        expect.any(String),
+        expect.any(String),
+        "App",
+        NO_FILTERS,
+        "Wan",
+      );
+    });
+  });
+
+  it("re-queries when scope changes", async () => {
+    const conn = createMockConnection();
+    conn.invoke.mockResolvedValue(emptyResult());
+
+    const { rerender } = renderHook(
+      ({ scope }: { scope: NetworkScope }) =>
+        useUsageData(conn as unknown as Conn, "Day", 0, "Apps", NO_FILTERS, scope),
+      { initialProps: { scope: "All" as NetworkScope } },
+    );
+
+    await waitFor(() => {
+      expect(conn.invoke).toHaveBeenCalledTimes(1);
+    });
+
+    rerender({ scope: "Wan" });
+
+    await waitFor(() => {
+      expect(conn.invoke).toHaveBeenCalledTimes(2);
+    });
   });
 });

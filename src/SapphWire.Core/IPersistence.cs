@@ -10,7 +10,7 @@ public interface IPersistence : IAsyncDisposable
     Task<IReadOnlyList<ThroughputBucket>> GetSeriesAsync(DateTimeOffset from, DateTimeOffset to, TimeSpan bucketSize);
     Task<IReadOnlyList<GraphSeriesPoint>> GetGroupedSeriesAsync(DateTimeOffset from, DateTimeOffset to, TimeSpan bucketSize, GroupBy groupBy);
     Task WriteDetailBucketsAsync(IReadOnlyList<DetailFlowBucket> buckets);
-    Task<UsageResult> GetUsageAsync(DateTimeOffset from, DateTimeOffset to, string groupBy, UsageFilters filters);
+    Task<UsageResult> GetUsageAsync(DateTimeOffset from, DateTimeOffset to, string groupBy, UsageFilters filters, string scope = "All", IReadOnlyList<HostSubnet>? hostSubnets = null);
     Task RunRollupAsync(DateTimeOffset now);
     Task SaveBlockedParentAsync(string appId);
     Task RemoveBlockedParentAsync(string appId);

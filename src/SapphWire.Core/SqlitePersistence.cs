@@ -364,7 +364,8 @@ public class SqlitePersistence : IPersistence
     }
 
     public async Task<UsageResult> GetUsageAsync(
-        DateTimeOffset from, DateTimeOffset to, string groupBy, UsageFilters filters)
+        DateTimeOffset from, DateTimeOffset to, string groupBy, UsageFilters filters,
+        string scope = "All", IReadOnlyList<HostSubnet>? hostSubnets = null)
     {
         var fromUnix = from.ToUnixTimeSeconds();
         var toUnix = to.ToUnixTimeSeconds();
@@ -388,6 +389,32 @@ public class SqlitePersistence : IPersistence
                 ["@from"] = fromUnix,
                 ["@to"] = toUnix,
             };
+
+            if (scope is "Lan" or "Wan")
+            {
+                var targetScope = scope == "Lan" ? NetworkScope.Lan : NetworkScope.Wan;
+                var subnets = hostSubnets ?? Array.Empty<HostSubnet>();
+                var matchingHosts = await GetDistinctRemoteHosts(table, fromUnix, toUnix);
+                var filtered = matchingHosts
+                    .Where(h => ScopeClassifier.Classify(h, subnets) == targetScope)
+                    .ToList();
+
+                if (filtered.Count == 0)
+                {
+                    return new UsageResult(
+                        Array.Empty<UsageRow>(), Array.Empty<UsageRow>(),
+                        Array.Empty<UsageRow>(), 0, 0, Array.Empty<SparklinePoint>());
+                }
+
+                var scopePlaceholders = new List<string>();
+                for (var i = 0; i < filtered.Count; i++)
+                {
+                    var p = $"@sc{i}";
+                    scopePlaceholders.Add(p);
+                    parameters[p] = filtered[i];
+                }
+                whereFilters.Add($"remote_host IN ({string.Join(", ", scopePlaceholders)})");
+            }
 
             if (filters.Left.Count > 0)
             {
@@ -501,6 +528,21 @@ public class SqlitePersistence : IPersistence
         if (await reader.ReadAsync())
             return (reader.GetInt64(0), reader.GetInt64(1));
         return (0, 0);
+    }
+
+    private async Task<List<string>> GetDistinctRemoteHosts(
+        string table, long fromUnix, long toUnix)
+    {
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = $"SELECT DISTINCT remote_host FROM {table} WHERE timestamp >= @from AND timestamp <= @to;";
+        cmd.Parameters.AddWithValue("@from", fromUnix);
+        cmd.Parameters.AddWithValue("@to", toUnix);
+
+        var hosts = new List<string>();
+        using var reader = await cmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            hosts.Add(reader.GetString(0));
+        return hosts;
     }
 
     private async Task<IReadOnlyList<SparklinePoint>> QuerySparkline(
