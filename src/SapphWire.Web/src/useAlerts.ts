@@ -18,6 +18,7 @@ export interface AlertsHookResult {
   markRead: (id: number) => Promise<void>;
   markAllRead: () => Promise<void>;
   deleteAlert: (id: number) => Promise<void>;
+  deleteAllAlerts: () => Promise<void>;
 }
 
 export function useAlerts(connection: HubConnection | null): AlertsHookResult {
@@ -72,6 +73,12 @@ export function useAlerts(connection: HubConnection | null): AlertsHookResult {
     [connection],
   );
 
+  const deleteAllAlerts = useCallback(async () => {
+    if (!connection) return;
+    await connection.invoke("DeleteAllAlerts");
+    setAlerts([]);
+  }, [connection]);
+
   const unreadCount = useMemo(
     () => alerts.filter((a) => !a.isRead).length,
     [alerts],
@@ -89,5 +96,6 @@ export function useAlerts(connection: HubConnection | null): AlertsHookResult {
     markRead,
     markAllRead,
     deleteAlert,
+    deleteAllAlerts,
   };
 }

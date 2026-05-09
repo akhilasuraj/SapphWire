@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 import { useAlerts, type AlertRecord } from "../useAlerts";
 import { useFirewall } from "../useFirewall";
@@ -7,7 +7,7 @@ import { AlertGlyph, WarningTriangle, ChevronDown } from "./ui/icons";
 
 interface Props {
   connection: HubConnection | null;
-  onNavigateToAlert?: (alertId: number) => void;
+  onNavigateToFirewall?: (appName: string) => void;
 }
 
 type AlertPill = "Important" | "All";
@@ -48,13 +48,21 @@ function AlertRow({
   onToggle,
   onBlock,
   onDelete,
+  onShowInFirewall,
+  onOpenFileLocation,
+  fileExists,
 }: {
   alert: AlertRecord;
   isExpanded: boolean;
   onToggle: () => void;
   onBlock: () => void;
   onDelete: () => void;
+  onShowInFirewall: () => void;
+  onOpenFileLocation: () => void;
+  fileExists?: boolean;
 }) {
+  const fileMissing = fileExists === false;
+
   return (
     <>
       <div
@@ -156,12 +164,33 @@ function AlertRow({
               Block this app
             </button>
             <button
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowInFirewall();
+              }}
               className="pill"
               style={{ background: "var(--sky)" }}
             >
               Show in Firewall tab
             </button>
+            {alert.exePath && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenFileLocation();
+                }}
+                className="pill"
+                disabled={fileMissing}
+                title={fileMissing ? "File no longer exists on disk" : undefined}
+                style={{
+                  background: fileMissing ? "var(--cream-2)" : "var(--mint)",
+                  opacity: fileMissing ? 0.5 : 1,
+                  cursor: fileMissing ? "not-allowed" : "pointer",
+                }}
+              >
+                Open file location
+              </button>
+            )}
             <div style={{ flex: 1 }} />
             <button
               data-testid={`delete-alert-${alert.id}`}
@@ -181,11 +210,37 @@ function AlertRow({
   );
 }
 
-export default function AlertsTab({ connection }: Props) {
-  const { alerts, markRead, markAllRead, deleteAlert } = useAlerts(connection);
+export default function AlertsTab({ connection, onNavigateToFirewall }: Props) {
+  const { alerts, markRead, markAllRead, deleteAlert, deleteAllAlerts } = useAlerts(connection);
   const { blockApp } = useFirewall(connection);
   const [activePill, setActivePill] = useState<AlertPill>("Important");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fileExistsCache, setFileExistsCache] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    return () => {
+      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    };
+  }, []);
+
+  const handleClearAll = () => {
+    if (!confirmingClear) {
+      setConfirmingClear(true);
+      clearTimerRef.current = setTimeout(() => setConfirmingClear(false), 3000);
+    } else {
+      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+      setConfirmingClear(false);
+      deleteAllAlerts();
+    }
+  };
+
+  const handleOpenFileLocation = (exePath: string) => {
+    if (connection) {
+      connection.invoke("OpenFileLocation", exePath).catch(() => {});
+    }
+  };
 
   const handleToggle = (alert: AlertRecord) => {
     if (expandedId === alert.id) {
@@ -194,6 +249,13 @@ export default function AlertsTab({ connection }: Props) {
       setExpandedId(alert.id);
       if (!alert.isRead) {
         markRead(alert.id);
+      }
+      if (alert.exePath && connection && !(alert.id in fileExistsCache)) {
+        connection.invoke("CheckFileExists", alert.exePath)
+          .then((exists: boolean) => {
+            setFileExistsCache(prev => ({ ...prev, [alert.id]: exists }));
+          })
+          .catch(() => {});
       }
     }
   };
@@ -244,6 +306,18 @@ export default function AlertsTab({ connection }: Props) {
         >
           Mark all read
         </button>
+        {alerts.length > 0 && (
+          <button
+            onClick={handleClearAll}
+            className="pill"
+            style={{
+              background: confirmingClear ? "var(--coral)" : "var(--paper)",
+              color: confirmingClear ? "white" : undefined,
+            }}
+          >
+            {confirmingClear ? "Confirm" : "Clear all"}
+          </button>
+        )}
       </div>
 
       {alerts.length === 0 ? (
@@ -341,6 +415,9 @@ export default function AlertsTab({ connection }: Props) {
                     onToggle={() => handleToggle(alert)}
                     onBlock={() => blockApp(alert.appName)}
                     onDelete={() => deleteAlert(alert.id)}
+                    onShowInFirewall={() => onNavigateToFirewall?.(alert.appName)}
+                    onOpenFileLocation={() => alert.exePath && handleOpenFileLocation(alert.exePath)}
+                    fileExists={fileExistsCache[alert.id]}
                   />
                 ))}
               </div>

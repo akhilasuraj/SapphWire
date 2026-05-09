@@ -189,6 +189,29 @@ describe("useAlerts", () => {
     expect(result.current.alerts[0].appName).toBe("Discord");
   });
 
+  it("deleteAllAlerts calls hub and clears local list", async () => {
+    mockConn.invoke.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useAlerts(mockConn as unknown as Parameters<typeof useAlerts>[0]),
+    );
+
+    act(() => {
+      mockConn._emit("AlertsSnapshot", [
+        makeAlert({ id: 1 }),
+        makeAlert({ id: 2, appName: "Discord" }),
+      ]);
+    });
+
+    await act(async () => {
+      await result.current.deleteAllAlerts();
+    });
+
+    expect(mockConn.invoke).toHaveBeenCalledWith("DeleteAllAlerts");
+    expect(result.current.alerts).toHaveLength(0);
+    expect(result.current.unreadCount).toBe(0);
+  });
+
   it("alertTimestamps returns ISO strings of all alert timestamps", () => {
     const { result } = renderHook(() =>
       useAlerts(mockConn as unknown as Parameters<typeof useAlerts>[0]),

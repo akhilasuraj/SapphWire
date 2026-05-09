@@ -21,6 +21,7 @@ public interface IPersistence : IAsyncDisposable
     Task MarkAlertReadAsync(long alertId);
     Task MarkAllAlertsReadAsync();
     Task DeleteAlertAsync(long alertId);
+    Task DeleteAllAlertsAsync();
     Task<IReadOnlyList<string>> GetKnownAlertAppsAsync();
 
     Task SaveAppUsageAsync(IReadOnlyDictionary<string, (long CumulativeBytes, DateTimeOffset LastSeen)> entries);
