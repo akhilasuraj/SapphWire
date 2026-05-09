@@ -10,6 +10,7 @@ import {
   type UsageRow,
   type SparklinePoint,
 } from "../useUsageData";
+import { useNetworkScope, type NetworkScope } from "../useNetworkScope";
 import { LetterSticker, Sticker, colorFromString } from "./ui/Sticker";
 import { HostGlyph, TrafficGlyph } from "./ui/icons";
 
@@ -198,12 +199,18 @@ function UsageColumn({
   );
 }
 
+const SCOPES: NetworkScope[] = ["All", "Lan", "Wan"];
+
 function DonutChart({
   totalUp,
   totalDown,
+  scope,
+  onScopeChange,
 }: {
   totalUp: number;
   totalDown: number;
+  scope: NetworkScope;
+  onScopeChange: (s: NetworkScope) => void;
 }) {
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
@@ -277,6 +284,34 @@ function DonutChart({
       <div className="card-title">
         <span className="dot" style={{ background: "var(--peach)" }} />
         Total Bandwidth
+      </div>
+      <div
+        data-testid="scope-selector"
+        style={{
+          display: "flex",
+          gap: 4,
+          marginBottom: 8,
+        }}
+      >
+        {SCOPES.map((s) => (
+          <button
+            key={s}
+            data-testid={`scope-${s}`}
+            onClick={() => onScopeChange(s)}
+            className={`pill ${s === scope ? "active" : ""}`}
+            style={
+              s === scope
+                ? ({
+                    "--p-active": "var(--peach)",
+                    fontSize: 11,
+                    padding: "3px 10px",
+                  } as React.CSSProperties)
+                : { fontSize: 11, padding: "3px 10px" }
+            }
+          >
+            {s === "Lan" ? "LAN" : s === "Wan" ? "WAN" : "All"}
+          </button>
+        ))}
       </div>
       <div style={{ position: "relative", width: "100%", height: 180 }}>
         <div
@@ -385,8 +420,9 @@ export default function UsageTab({ connection }: Props) {
     middle: [],
     right: [],
   });
+  const { scope, changeScope } = useNetworkScope();
 
-  const data = useUsageData(connection, period, offset, pill, filters);
+  const data = useUsageData(connection, period, offset, pill, filters, scope);
 
   const handlePeriodChange = useCallback((newPeriod: UsagePeriod) => {
     setPeriod(newPeriod);
@@ -468,7 +504,7 @@ export default function UsageTab({ connection }: Props) {
       </div>
 
       <div className="grid-usage" style={{ marginBottom: 18 }}>
-        <DonutChart totalUp={data.totalUp} totalDown={data.totalDown} />
+        <DonutChart totalUp={data.totalUp} totalDown={data.totalDown} scope={scope} onScopeChange={changeScope} />
         <UsageColumn
           testId="column-left"
           header={pill}

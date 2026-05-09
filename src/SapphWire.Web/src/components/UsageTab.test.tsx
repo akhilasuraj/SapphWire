@@ -12,6 +12,11 @@ vi.mock("../useUsageData", () => ({
   })),
 }));
 
+vi.mock("../useNetworkScope", async () => {
+  const actual = await vi.importActual<Record<string, unknown>>("../useNetworkScope");
+  return { ...actual };
+});
+
 vi.mock("echarts", () => {
   const instance = {
     setOption: vi.fn(),
@@ -99,6 +104,7 @@ describe("UsageTab", () => {
       -1,
       "Apps",
       expect.any(Object),
+      "All",
     );
   });
 
@@ -112,6 +118,7 @@ describe("UsageTab", () => {
       0,
       "Apps",
       expect.any(Object),
+      "All",
     );
   });
 
@@ -127,6 +134,7 @@ describe("UsageTab", () => {
       0,
       "Apps",
       expect.any(Object),
+      "All",
     );
   });
 
@@ -161,6 +169,7 @@ describe("UsageTab", () => {
       0,
       "Publishers",
       expect.any(Object),
+      "All",
     );
   });
 
@@ -173,6 +182,7 @@ describe("UsageTab", () => {
       0,
       "Traffic",
       expect.any(Object),
+      "All",
     );
   });
 
@@ -369,5 +379,60 @@ describe("UsageTab", () => {
     const lastCall = mockUseUsageData.mock.calls[mockUseUsageData.mock.calls.length - 1];
     const filters = lastCall[4] as UsageFilters;
     expect(filters.left).toEqual([]);
+  });
+
+  it("renders the scope selector inside Total bandwidth card", () => {
+    render(<UsageTab connection={null} />);
+    expect(screen.getByTestId("scope-selector")).toBeInTheDocument();
+  });
+
+  it("renders All, LAN, WAN scope buttons", () => {
+    render(<UsageTab connection={null} />);
+    expect(screen.getByTestId("scope-All")).toBeInTheDocument();
+    expect(screen.getByTestId("scope-Lan")).toBeInTheDocument();
+    expect(screen.getByTestId("scope-Wan")).toBeInTheDocument();
+  });
+
+  it("All scope is the default active scope", () => {
+    render(<UsageTab connection={null} />);
+    expect(screen.getByTestId("scope-All")).toHaveClass("active");
+    expect(screen.getByTestId("scope-Lan")).not.toHaveClass("active");
+    expect(screen.getByTestId("scope-Wan")).not.toHaveClass("active");
+  });
+
+  it("displays LAN and WAN labels correctly", () => {
+    render(<UsageTab connection={null} />);
+    expect(screen.getByTestId("scope-Lan")).toHaveTextContent("LAN");
+    expect(screen.getByTestId("scope-Wan")).toHaveTextContent("WAN");
+    expect(screen.getByTestId("scope-All")).toHaveTextContent("All");
+  });
+
+  it("clicking LAN scope passes Lan to useUsageData", () => {
+    render(<UsageTab connection={null} />);
+    fireEvent.click(screen.getByTestId("scope-Lan"));
+    const lastCall = mockUseUsageData.mock.calls[mockUseUsageData.mock.calls.length - 1];
+    expect(lastCall[5]).toBe("Lan");
+  });
+
+  it("clicking WAN scope passes Wan to useUsageData", () => {
+    render(<UsageTab connection={null} />);
+    fireEvent.click(screen.getByTestId("scope-Wan"));
+    const lastCall = mockUseUsageData.mock.calls[mockUseUsageData.mock.calls.length - 1];
+    expect(lastCall[5]).toBe("Wan");
+  });
+
+  it("clicking All scope passes All to useUsageData", () => {
+    render(<UsageTab connection={null} />);
+    fireEvent.click(screen.getByTestId("scope-Wan"));
+    fireEvent.click(screen.getByTestId("scope-All"));
+    const lastCall = mockUseUsageData.mock.calls[mockUseUsageData.mock.calls.length - 1];
+    expect(lastCall[5]).toBe("All");
+  });
+
+  it("scope selector activates clicked button", () => {
+    render(<UsageTab connection={null} />);
+    fireEvent.click(screen.getByTestId("scope-Lan"));
+    expect(screen.getByTestId("scope-Lan")).toHaveClass("active");
+    expect(screen.getByTestId("scope-All")).not.toHaveClass("active");
   });
 });
