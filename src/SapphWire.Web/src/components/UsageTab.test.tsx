@@ -17,6 +17,10 @@ vi.mock("../useNetworkScope", async () => {
   return { ...actual };
 });
 
+vi.mock("../useHostnames", () => ({
+  useHostnames: vi.fn(() => ({})),
+}));
+
 vi.mock("echarts", () => {
   const instance = {
     setOption: vi.fn(),
@@ -55,8 +59,10 @@ import {
   type UsageData,
   type UsageFilters,
 } from "../useUsageData";
+import { useHostnames } from "../useHostnames";
 
 const mockUseUsageData = vi.mocked(useUsageData);
+const mockUseHostnames = vi.mocked(useHostnames);
 
 function mockData(partial: Partial<UsageData> = {}): UsageData {
   return {
@@ -434,5 +440,65 @@ describe("UsageTab", () => {
     fireEvent.click(screen.getByTestId("scope-Lan"));
     expect(screen.getByTestId("scope-Lan")).toHaveClass("active");
     expect(screen.getByTestId("scope-All")).not.toHaveClass("active");
+  });
+
+  it("displays PTR hostname instead of raw IP when hostname resolves", () => {
+    mockUseUsageData.mockReturnValue(
+      mockData({
+        middle: [{ name: "1.2.3.4", bytesUp: 500, bytesDown: 3000 }],
+      }),
+    );
+    mockUseHostnames.mockReturnValue({ "1.2.3.4": "cdn.example.com" });
+    render(<UsageTab connection={null} />);
+    const col = screen.getByTestId("column-middle");
+    expect(within(col).getByText("cdn.example.com")).toBeInTheDocument();
+    expect(within(col).queryByText("1.2.3.4")).not.toBeInTheDocument();
+  });
+
+  it("displays raw IP when hostname does not resolve", () => {
+    mockUseUsageData.mockReturnValue(
+      mockData({
+        middle: [{ name: "9.9.9.9", bytesUp: 100, bytesDown: 200 }],
+      }),
+    );
+    mockUseHostnames.mockReturnValue({});
+    render(<UsageTab connection={null} />);
+    const col = screen.getByTestId("column-middle");
+    expect(within(col).getByText("9.9.9.9")).toBeInTheDocument();
+  });
+
+  it("preserves distinct rows for duplicate PTR names (CDN edges)", () => {
+    mockUseUsageData.mockReturnValue(
+      mockData({
+        middle: [
+          { name: "1.1.1.1", bytesUp: 100, bytesDown: 200 },
+          { name: "2.2.2.2", bytesUp: 300, bytesDown: 400 },
+        ],
+      }),
+    );
+    mockUseHostnames.mockReturnValue({
+      "1.1.1.1": "a125.dscr.akamai.net",
+      "2.2.2.2": "a125.dscr.akamai.net",
+    });
+    render(<UsageTab connection={null} />);
+    const col = screen.getByTestId("column-middle");
+    const labels = within(col).getAllByText("a125.dscr.akamai.net");
+    expect(labels).toHaveLength(2);
+  });
+
+  it("passes middle column IPs to useHostnames", () => {
+    mockUseUsageData.mockReturnValue(
+      mockData({
+        middle: [
+          { name: "1.2.3.4", bytesUp: 500, bytesDown: 3000 },
+          { name: "5.6.7.8", bytesUp: 100, bytesDown: 200 },
+        ],
+      }),
+    );
+    render(<UsageTab connection={null} />);
+    expect(mockUseHostnames).toHaveBeenCalledWith(
+      null,
+      ["1.2.3.4", "5.6.7.8"],
+    );
   });
 });

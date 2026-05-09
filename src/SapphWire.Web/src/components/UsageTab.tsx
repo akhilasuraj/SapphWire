@@ -11,6 +11,7 @@ import {
   type SparklinePoint,
 } from "../useUsageData";
 import { useNetworkScope, type NetworkScope } from "../useNetworkScope";
+import { useHostnames } from "../useHostnames";
 import { LetterSticker, Sticker, colorFromString } from "./ui/Sticker";
 import { HostGlyph, TrafficGlyph } from "./ui/icons";
 
@@ -36,6 +37,7 @@ function formatBytes(bytes: number): string {
 
 function UsageRowItem({
   row,
+  displayName,
   maxBytes,
   isSelected,
   onClick,
@@ -43,6 +45,7 @@ function UsageRowItem({
   showFavicon,
 }: {
   row: UsageRow;
+  displayName?: string;
   maxBytes: number;
   isSelected: boolean;
   onClick: () => void;
@@ -51,6 +54,7 @@ function UsageRowItem({
 }) {
   const total = row.bytesUp + row.bytesDown;
   const pct = maxBytes > 0 ? (total / maxBytes) * 100 : 0;
+  const label = displayName || row.name;
   const stickerColor = colorFromString(row.name);
 
   return (
@@ -99,7 +103,7 @@ function UsageRowItem({
             color: "var(--ink)",
           }}
         >
-          {row.name}
+          {label}
         </div>
         <div
           data-testid={`usage-bar-${column}-${row.name}`}
@@ -143,6 +147,7 @@ function UsageColumn({
   column,
   showFavicon,
   dotColor,
+  hostnames,
 }: {
   testId: string;
   header: string;
@@ -153,6 +158,7 @@ function UsageColumn({
   column: "left" | "middle" | "right";
   showFavicon: boolean;
   dotColor: string;
+  hostnames?: Record<string, string>;
 }) {
   const maxBytes =
     rows.length > 0
@@ -178,6 +184,7 @@ function UsageColumn({
             <div style={rowStyle}>
               <UsageRowItem
                 row={rows[index]}
+                displayName={hostnames?.[rows[index].name]}
                 maxBytes={maxBytes}
                 isSelected={selectedNames.includes(rows[index].name)}
                 onClick={() => onToggle(rows[index].name)}
@@ -425,6 +432,9 @@ export default function UsageTab({ connection }: Props) {
 
   const data = useUsageData(connection, period, offset, pill, filters, scope);
 
+  const middleIps = data.middle.map((r) => r.name);
+  const hostnames = useHostnames(connection, middleIps);
+
   const handlePeriodChange = useCallback((newPeriod: UsagePeriod) => {
     setPeriod(newPeriod);
     setOffset(0);
@@ -527,6 +537,7 @@ export default function UsageTab({ connection }: Props) {
           column="middle"
           showFavicon={true}
           dotColor={COLUMN_DOTS.middle}
+          hostnames={hostnames}
         />
         <UsageColumn
           testId="column-right"
