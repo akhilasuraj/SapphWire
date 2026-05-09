@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import AlertsTab from "./AlertsTab";
 import * as useAlertsModule from "../useAlerts";
@@ -66,23 +66,23 @@ describe("AlertsTab", () => {
   });
 
   it("renders Important and All pills", () => {
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.getByText("Important")).toBeInTheDocument();
     expect(screen.getByText("All")).toBeInTheDocument();
   });
 
   it("does not render Logs pill (hidden in v1)", () => {
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.queryByText("Logs")).not.toBeInTheDocument();
   });
 
   it("renders Mark all read button", () => {
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.getByText("Mark all read")).toBeInTheDocument();
   });
 
   it("shows empty state when no alerts", () => {
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.getByText("No alerts yet")).toBeInTheDocument();
   });
 
@@ -97,7 +97,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.getByText("Chrome")).toBeInTheDocument();
   });
 
@@ -112,7 +112,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.getByText("NEW")).toBeInTheDocument();
   });
 
@@ -127,7 +127,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.queryByText("NEW")).not.toBeInTheDocument();
   });
 
@@ -142,7 +142,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByTestId("alert-row-5"));
     expect(mockMarkRead).toHaveBeenCalledWith(5);
   });
@@ -158,7 +158,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByText("Mark all read"));
     expect(mockMarkAllRead).toHaveBeenCalled();
   });
@@ -181,7 +181,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByTestId("alert-row-1"));
 
     expect(screen.getByText("1.2.3.4")).toBeInTheDocument();
@@ -200,7 +200,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByTestId("alert-row-1"));
     expect(screen.getByText("Block this app")).toBeInTheDocument();
   });
@@ -221,7 +221,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByTestId("alert-row-1"));
     fireEvent.click(screen.getByText("Block this app"));
     expect(blockApp).toHaveBeenCalledWith("Chrome");
@@ -238,7 +238,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByTestId("alert-row-1"));
     expect(screen.getByText("Show in Firewall tab")).toBeInTheDocument();
   });
@@ -254,7 +254,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByTestId("alert-row-3"));
     fireEvent.click(screen.getByTestId("delete-alert-3"));
     expect(mockDeleteAlert).toHaveBeenCalledWith(3);
@@ -272,7 +272,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.getByText("Today")).toBeInTheDocument();
   });
 
@@ -290,7 +290,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.getByText("Yesterday")).toBeInTheDocument();
   });
 
@@ -305,7 +305,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.getByText(/93\.184\.216\.34:443/)).toBeInTheDocument();
   });
 
@@ -322,12 +322,12 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.getByText("Clear all")).toBeInTheDocument();
   });
 
   it("does not show Clear all button when no alerts", () => {
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     expect(screen.queryByText("Clear all")).not.toBeInTheDocument();
   });
 
@@ -342,7 +342,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByText("Clear all"));
     expect(screen.getByText("Confirm")).toBeInTheDocument();
     expect(screen.queryByText("Clear all")).not.toBeInTheDocument();
@@ -359,7 +359,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByText("Clear all"));
     fireEvent.click(screen.getByText("Confirm"));
     expect(mockDeleteAllAlerts).toHaveBeenCalled();
@@ -377,7 +377,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByText("Clear all"));
     expect(screen.getByText("Confirm")).toBeInTheDocument();
 
@@ -420,7 +420,7 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByTestId("alert-row-1"));
     expect(screen.queryByText("Open file location")).not.toBeInTheDocument();
   });
@@ -436,13 +436,18 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={null} onNavigateToAlert={() => {}} />);
+    render(<AlertsTab connection={null} />);
     fireEvent.click(screen.getByTestId("alert-row-1"));
     expect(screen.getByText("Open file location")).toBeInTheDocument();
   });
 
-  it("Open file location calls connection.invoke with exePath", () => {
+  it("Open file location calls connection.invoke with exePath", async () => {
     const conn = mockConnection();
+    (conn.invoke as ReturnType<typeof vi.fn>).mockImplementation((method: string) => {
+      if (method === "CheckFileExists") return Promise.resolve(true);
+      return Promise.resolve(undefined);
+    });
+
     vi.spyOn(useAlertsModule, "useAlerts").mockReturnValue({
       alerts: [makeAlert({ id: 1, exePath: "C:\\app\\test.exe" })],
       unreadCount: 1,
@@ -453,9 +458,65 @@ describe("AlertsTab", () => {
       deleteAllAlerts: mockDeleteAllAlerts,
     });
 
-    render(<AlertsTab connection={conn} onNavigateToAlert={() => {}} />);
-    fireEvent.click(screen.getByTestId("alert-row-1"));
+    render(<AlertsTab connection={conn} onNavigateToFirewall={() => {}} />);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("alert-row-1"));
+    });
     fireEvent.click(screen.getByText("Open file location"));
     expect(conn.invoke).toHaveBeenCalledWith("OpenFileLocation", "C:\\app\\test.exe");
+  });
+
+  it("Open file location button is disabled with tooltip when file does not exist", async () => {
+    const conn = mockConnection();
+    (conn.invoke as ReturnType<typeof vi.fn>).mockImplementation((method: string) => {
+      if (method === "CheckFileExists") return Promise.resolve(false);
+      return Promise.resolve(undefined);
+    });
+
+    vi.spyOn(useAlertsModule, "useAlerts").mockReturnValue({
+      alerts: [makeAlert({ id: 1, exePath: "C:\\app\\missing.exe" })],
+      unreadCount: 1,
+      alertTimestamps: ["2024-06-01T12:00:00.000Z"],
+      markRead: mockMarkRead,
+      markAllRead: mockMarkAllRead,
+      deleteAlert: mockDeleteAlert,
+      deleteAllAlerts: mockDeleteAllAlerts,
+    });
+
+    render(<AlertsTab connection={conn} onNavigateToFirewall={() => {}} />);
+    fireEvent.click(screen.getByTestId("alert-row-1"));
+
+    await waitFor(() => {
+      const btn = screen.getByText("Open file location");
+      expect(btn).toBeDisabled();
+      expect(btn).toHaveAttribute("title", "File no longer exists on disk");
+    });
+  });
+
+  it("Open file location button is enabled when file exists on disk", async () => {
+    const conn = mockConnection();
+    (conn.invoke as ReturnType<typeof vi.fn>).mockImplementation((method: string) => {
+      if (method === "CheckFileExists") return Promise.resolve(true);
+      return Promise.resolve(undefined);
+    });
+
+    vi.spyOn(useAlertsModule, "useAlerts").mockReturnValue({
+      alerts: [makeAlert({ id: 1, exePath: "C:\\app\\test.exe" })],
+      unreadCount: 1,
+      alertTimestamps: ["2024-06-01T12:00:00.000Z"],
+      markRead: mockMarkRead,
+      markAllRead: mockMarkAllRead,
+      deleteAlert: mockDeleteAlert,
+      deleteAllAlerts: mockDeleteAllAlerts,
+    });
+
+    render(<AlertsTab connection={conn} onNavigateToFirewall={() => {}} />);
+    fireEvent.click(screen.getByTestId("alert-row-1"));
+
+    await waitFor(() => {
+      const btn = screen.getByText("Open file location");
+      expect(btn).not.toBeDisabled();
+      expect(btn).not.toHaveAttribute("title");
+    });
   });
 });

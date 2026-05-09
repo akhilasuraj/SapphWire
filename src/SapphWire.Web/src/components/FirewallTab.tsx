@@ -339,14 +339,14 @@ export default function FirewallTab({ connection, highlightAppId, onHighlightHan
   const connections = useConnections(connection, expandedAppId);
 
   useEffect(() => {
-    if (highlightAppId) {
-      setExpandedAppId(highlightAppId);
-      onHighlightHandled?.();
-      setTimeout(() => {
-        const el = document.querySelector(`[data-testid="app-row-${highlightAppId}"]`);
-        el?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100);
-    }
+    if (!highlightAppId) return;
+    setExpandedAppId(highlightAppId);
+    onHighlightHandled?.();
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-testid="app-row-${highlightAppId}"]`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 100);
+    return () => clearTimeout(timer);
   }, [highlightAppId, onHighlightHandled]);
 
   const blockedApps = apps.filter((a) => isBlocked(a.appId));

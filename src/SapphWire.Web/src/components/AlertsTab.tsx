@@ -7,7 +7,6 @@ import { AlertGlyph, WarningTriangle, ChevronDown } from "./ui/icons";
 
 interface Props {
   connection: HubConnection | null;
-  onNavigateToAlert?: (alertId: number) => void;
   onNavigateToFirewall?: (appName: string) => void;
 }
 
@@ -51,6 +50,7 @@ function AlertRow({
   onDelete,
   onShowInFirewall,
   onOpenFileLocation,
+  fileExists,
 }: {
   alert: AlertRecord;
   isExpanded: boolean;
@@ -59,6 +59,7 @@ function AlertRow({
   onDelete: () => void;
   onShowInFirewall: () => void;
   onOpenFileLocation: () => void;
+  fileExists?: boolean;
 }) {
   return (
     <>
@@ -177,7 +178,13 @@ function AlertRow({
                   onOpenFileLocation();
                 }}
                 className="pill"
-                style={{ background: "var(--mint)" }}
+                disabled={fileExists === false}
+                title={fileExists === false ? "File no longer exists on disk" : undefined}
+                style={{
+                  background: fileExists === false ? "var(--cream-2)" : "var(--mint)",
+                  opacity: fileExists === false ? 0.5 : 1,
+                  cursor: fileExists === false ? "not-allowed" : "pointer",
+                }}
               >
                 Open file location
               </button>
@@ -208,6 +215,7 @@ export default function AlertsTab({ connection, onNavigateToFirewall }: Props) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [confirmingClear, setConfirmingClear] = useState(false);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fileExistsCache, setFileExistsCache] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     return () => {
@@ -239,6 +247,13 @@ export default function AlertsTab({ connection, onNavigateToFirewall }: Props) {
       setExpandedId(alert.id);
       if (!alert.isRead) {
         markRead(alert.id);
+      }
+      if (alert.exePath && connection && !(alert.id in fileExistsCache)) {
+        connection.invoke("CheckFileExists", alert.exePath)
+          .then((exists: boolean) => {
+            setFileExistsCache(prev => ({ ...prev, [alert.id]: exists }));
+          })
+          .catch(() => {});
       }
     }
   };
@@ -400,6 +415,7 @@ export default function AlertsTab({ connection, onNavigateToFirewall }: Props) {
                     onDelete={() => deleteAlert(alert.id)}
                     onShowInFirewall={() => onNavigateToFirewall?.(alert.appName)}
                     onOpenFileLocation={() => alert.exePath && handleOpenFileLocation(alert.exePath)}
+                    fileExists={fileExistsCache[alert.id]}
                   />
                 ))}
               </div>
