@@ -61,6 +61,8 @@ function AlertRow({
   onOpenFileLocation: () => void;
   fileExists?: boolean;
 }) {
+  const fileMissing = fileExists === false;
+
   return (
     <>
       <div
@@ -178,12 +180,12 @@ function AlertRow({
                   onOpenFileLocation();
                 }}
                 className="pill"
-                disabled={fileExists === false}
-                title={fileExists === false ? "File no longer exists on disk" : undefined}
+                disabled={fileMissing}
+                title={fileMissing ? "File no longer exists on disk" : undefined}
                 style={{
-                  background: fileExists === false ? "var(--cream-2)" : "var(--mint)",
-                  opacity: fileExists === false ? 0.5 : 1,
-                  cursor: fileExists === false ? "not-allowed" : "pointer",
+                  background: fileMissing ? "var(--cream-2)" : "var(--mint)",
+                  opacity: fileMissing ? 0.5 : 1,
+                  cursor: fileMissing ? "not-allowed" : "pointer",
                 }}
               >
                 Open file location
