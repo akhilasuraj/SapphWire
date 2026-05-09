@@ -200,6 +200,7 @@ function UsageColumn({
 }
 
 const SCOPES: NetworkScope[] = ["All", "Lan", "Wan"];
+const SCOPE_LABELS: Record<NetworkScope, string> = { All: "All", Lan: "LAN", Wan: "WAN" };
 
 function DonutChart({
   totalUp,
@@ -309,7 +310,7 @@ function DonutChart({
                 : { fontSize: 11, padding: "3px 10px" }
             }
           >
-            {s === "Lan" ? "LAN" : s === "Wan" ? "WAN" : "All"}
+            {SCOPE_LABELS[s]}
           </button>
         ))}
       </div>
