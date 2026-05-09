@@ -12,6 +12,7 @@ public class ThroughputPublisher : BackgroundService
     private readonly IHubContext<DashboardHub> _hub;
     private readonly IPersistence _persistence;
     private readonly ITieredFlowStore _tieredFlowStore;
+    private readonly AppUsageRanker _appUsageRanker;
     private readonly IProcessResolver _processResolver;
     private readonly IDnsResolver _dnsResolver;
     private readonly IGeoIp _geoIp;
@@ -25,11 +26,15 @@ public class ThroughputPublisher : BackgroundService
     private AlertEngine? _alertEngine;
     private const int SparkMaxPoints = 60;
 
+    private int _rankerTickCounter;
+    private const int RankerTickInterval = 5;
+
     public ThroughputPublisher(
         FlowAggregator aggregator,
         IHubContext<DashboardHub> hub,
         IPersistence persistence,
         ITieredFlowStore tieredFlowStore,
+        AppUsageRanker appUsageRanker,
         IProcessResolver processResolver,
         IDnsResolver dnsResolver,
         IGeoIp geoIp,
@@ -41,6 +46,7 @@ public class ThroughputPublisher : BackgroundService
         _hub = hub;
         _persistence = persistence;
         _tieredFlowStore = tieredFlowStore;
+        _appUsageRanker = appUsageRanker;
         _processResolver = processResolver;
         _dnsResolver = dnsResolver;
         _geoIp = geoIp;
@@ -114,6 +120,13 @@ public class ThroughputPublisher : BackgroundService
 
             if (perFlow.Count > 0)
             {
+                foreach (var (flowKey, bytes) in perFlow)
+                {
+                    var info = _processResolver.Resolve(flowKey.Pid);
+                    var appKey = AppGrouper.GetAppKey(info);
+                    _appUsageRanker.RecordTraffic(appKey, bytes.Up, bytes.Down);
+                }
+
                 try
                 {
                     var (activeApps, connectionsByApp) = BuildAppData(perFlow);
@@ -143,6 +156,22 @@ public class ThroughputPublisher : BackgroundService
                 try
                 {
                     await EvaluateAlerts(perFlow, bucket.Timestamp, stoppingToken);
+                }
+                catch
+                {
+                    // Best-effort
+                }
+            }
+
+            _rankerTickCounter++;
+            if (_rankerTickCounter >= RankerTickInterval)
+            {
+                _rankerTickCounter = 0;
+                _appUsageRanker.Tick();
+
+                try
+                {
+                    await _persistence.SaveAppUsageAsync(_appUsageRanker.GetState());
                 }
                 catch
                 {

@@ -45,6 +45,10 @@ try
         _ => new TieredFlowStore(SqlitePersistence.GetDefaultConnectionString()));
     builder.Services.AddSingleton<IFirewall, WindowsFirewall>();
     builder.Services.AddSingleton<IInstalledAppsProvider, WindowsInstalledAppsProvider>();
+    builder.Services.AddSingleton<AppUsageRanker>(sp =>
+        new AppUsageRanker(
+            sp.GetRequiredService<IInstalledAppsProvider>(),
+            () => DateTimeOffset.UtcNow));
     builder.Services.AddSingleton<IToastNotifier, WindowsToastNotifier>();
     builder.Services.AddSingleton<SettingsManager>();
     builder.Services.AddSingleton<IAutostart, TaskSchedulerAutostart>();
@@ -70,6 +74,12 @@ try
 
     await app.Services.GetRequiredService<IPersistence>().InitializeAsync();
     await app.Services.GetRequiredService<ITieredFlowStore>().InitializeAsync();
+
+    var persistence = app.Services.GetRequiredService<IPersistence>();
+    var ranker = app.Services.GetRequiredService<AppUsageRanker>();
+    var savedUsage = await persistence.LoadAppUsageAsync();
+    ranker.LoadState(savedUsage);
+    ranker.Tick();
 
     // Apply autostart setting on startup
     var settingsMgr = app.Services.GetRequiredService<SettingsManager>();
