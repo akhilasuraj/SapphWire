@@ -1,8 +1,19 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("../useGraphData", () => ({
   useGraphData: vi.fn(() => []),
+  getRangeSeconds: (pill: string) => {
+    const ranges: Record<string, number> = {
+      "5 Minutes": 300,
+      "3 Hours": 10800,
+      "24 Hours": 86400,
+      "Week": 604800,
+      "Month": 2592000,
+      "Year": 31536000,
+    };
+    return ranges[pill] ?? 300;
+  },
 }));
 
 vi.mock("../useAlerts", () => ({
@@ -37,15 +48,29 @@ import * as echarts from "echarts";
 const mockUseGraphData = vi.mocked(useGraphData);
 const mockEchartsInstance = (echarts as unknown as { _instance: { setOption: ReturnType<typeof vi.fn> } })._instance;
 
+function lastSetOptionCall() {
+  const calls = mockEchartsInstance.setOption.mock.calls;
+  return calls[calls.length - 1];
+}
+
+function lastOptions() {
+  return lastSetOptionCall()[0] as Record<string, unknown>;
+}
+
 describe("GraphTab", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseGraphData.mockReturnValue([]);
+  });
+
   it("renders the chart container", () => {
     render(<GraphTab connection={null} />);
     expect(screen.getByTestId("graph-chart")).toBeInTheDocument();
   });
 
-  it("renders all five time pills", () => {
+  it("renders all six time pills including Year", () => {
     render(<GraphTab connection={null} />);
-    for (const label of ["5 Minutes", "3 Hours", "24 Hours", "Week", "Month"]) {
+    for (const label of ["5 Minutes", "3 Hours", "24 Hours", "Week", "Month", "Year"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
   });
@@ -58,7 +83,7 @@ describe("GraphTab", () => {
 
   it("all time pills are enabled and clickable", () => {
     render(<GraphTab connection={null} />);
-    for (const label of ["5 Minutes", "3 Hours", "24 Hours", "Week", "Month"]) {
+    for (const label of ["5 Minutes", "3 Hours", "24 Hours", "Week", "Month", "Year"]) {
       expect(screen.getByText(label)).not.toBeDisabled();
     }
   });
@@ -153,12 +178,7 @@ describe("GraphTab", () => {
 
     render(<GraphTab connection={null} />);
 
-    const lastCall =
-      mockEchartsInstance.setOption.mock.calls[
-        mockEchartsInstance.setOption.mock.calls.length - 1
-      ];
-    const options = lastCall[0] as { dataZoom?: unknown[] };
-
+    const options = lastOptions() as { dataZoom?: unknown[] };
     expect(options.dataZoom).toBeDefined();
     expect(options.dataZoom!.length).toBeGreaterThanOrEqual(1);
   });
@@ -174,12 +194,7 @@ describe("GraphTab", () => {
 
     render(<GraphTab connection={null} />);
 
-    const lastCall =
-      mockEchartsInstance.setOption.mock.calls[
-        mockEchartsInstance.setOption.mock.calls.length - 1
-      ];
-    const options = lastCall[0] as { series?: Array<{ name: string }> };
-
+    const options = lastOptions() as { series?: Array<{ name: string }> };
     expect(options.series).toBeDefined();
     const names = options.series!.map((s) => s.name);
     expect(names).toContain("Chrome");
@@ -203,12 +218,7 @@ describe("GraphTab", () => {
 
     render(<GraphTab connection={null} />);
 
-    const lastCall =
-      mockEchartsInstance.setOption.mock.calls[
-        mockEchartsInstance.setOption.mock.calls.length - 1
-      ];
-    const options = lastCall[0] as { dataZoom?: Array<{ type: string }> };
-
+    const options = lastOptions() as { dataZoom?: Array<{ type: string }> };
     expect(options.dataZoom).toBeDefined();
     const types = options.dataZoom!.map((d) => d.type);
     expect(types).toContain("inside");
@@ -227,12 +237,7 @@ describe("GraphTab", () => {
       target: { value: "1 MB/s" },
     });
 
-    const lastCall =
-      mockEchartsInstance.setOption.mock.calls[
-        mockEchartsInstance.setOption.mock.calls.length - 1
-      ];
-    const options = lastCall[0] as { yAxis?: { max?: number } };
-
+    const options = lastOptions() as { yAxis?: { max?: number } };
     expect(options.yAxis?.max).toBe(1_000_000);
   });
 
@@ -244,15 +249,204 @@ describe("GraphTab", () => {
 
     render(<GraphTab connection={null} />);
 
-    const lastCall =
-      mockEchartsInstance.setOption.mock.calls[
-        mockEchartsInstance.setOption.mock.calls.length - 1
-      ];
-    const options = lastCall[0] as {
+    const options = lastOptions() as {
       series?: Array<{ markLine?: unknown }>;
     };
 
     const seriesWithMarkers = options.series?.filter((s) => s.markLine);
     expect(seriesWithMarkers?.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // --- Issue #16: New acceptance criteria tests ---
+
+  it("does not render search bar on Graph tab", () => {
+    render(<GraphTab connection={null} />);
+    expect(screen.queryByPlaceholderText("Find an app or host…")).not.toBeInTheDocument();
+  });
+
+  it("Y-axis has no per-line numeric labels (axisLabel show false)", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    const options = lastOptions() as { yAxis?: { axisLabel?: { show?: boolean } } };
+    expect(options.yAxis?.axisLabel?.show).toBe(false);
+  });
+
+  it("Y-axis has exactly 2 gridlines (splitNumber 2)", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    const options = lastOptions() as { yAxis?: { splitNumber?: number } };
+    expect(options.yAxis?.splitNumber).toBe(2);
+  });
+
+  it("shows peak value label above chart", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 5_000_000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    const peakLabel = screen.getByTestId("peak-label");
+    expect(peakLabel).toBeInTheDocument();
+    expect(peakLabel.textContent).toContain("5.0 MB/s");
+  });
+
+  it("peak label shows speed units in 5-min view", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 2_500_000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    const peakLabel = screen.getByTestId("peak-label");
+    expect(peakLabel.textContent).toContain("MB/s");
+  });
+
+  it("peak label shows bytes units in historical view", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 2_500_000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    fireEvent.click(screen.getByText("3 Hours"));
+
+    const peakLabel = screen.getByTestId("peak-label");
+    expect(peakLabel.textContent).toContain("MB");
+    expect(peakLabel.textContent).not.toContain("MB/s");
+  });
+
+  it("X-axis uses time type for full window span", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    const options = lastOptions() as { xAxis?: { type?: string; min?: number; max?: number } };
+    expect(options.xAxis?.type).toBe("time");
+    expect(options.xAxis?.min).toBeDefined();
+    expect(options.xAxis?.max).toBeDefined();
+  });
+
+  it("X-axis min/max span the full selected window", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    const options = lastOptions() as { xAxis?: { min?: number; max?: number } };
+    const span = options.xAxis!.max! - options.xAxis!.min!;
+    expect(span).toBe(300_000);
+  });
+
+  it("minimap defaults to rightmost 20 percent (start 80, end 100)", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    const options = lastOptions() as { dataZoom?: Array<{ type: string; start?: number; end?: number }> };
+    const slider = options.dataZoom?.find((d) => d.type === "slider");
+    expect(slider?.start).toBe(80);
+    expect(slider?.end).toBe(100);
+  });
+
+  it("setOption uses merge mode (not notMerge) to preserve minimap state", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    const call = lastSetOptionCall();
+    expect(call[1]).not.toBe(true);
+    expect(call[1]).toEqual({ replaceMerge: ["series"] });
+  });
+
+  it("series lines are curve-smoothed", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    const options = lastOptions() as { series?: Array<{ smooth?: boolean }> };
+    for (const s of options.series ?? []) {
+      expect(s.smooth).toBe(true);
+    }
+  });
+
+  it("historical view shows total volume figure", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1_000_000 } },
+      { timestamp: "2024-01-01T00:01:00Z", values: { Total: 2_000_000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    fireEvent.click(screen.getByText("3 Hours"));
+
+    const totalEl = screen.getByTestId("total-volume");
+    expect(totalEl).toBeInTheDocument();
+    expect(totalEl.textContent).toContain("3.0 MB");
+  });
+
+  it("5-min view does not show total volume figure", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    expect(screen.queryByTestId("total-volume")).not.toBeInTheDocument();
+  });
+
+  it("5-min view shows throughput-total, not total-volume", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    expect(screen.getByTestId("throughput-total")).toBeInTheDocument();
+    expect(screen.queryByTestId("total-volume")).not.toBeInTheDocument();
+  });
+
+  it("historical view shows total-volume, not throughput-total", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    fireEvent.click(screen.getByText("Week"));
+
+    expect(screen.getByTestId("total-volume")).toBeInTheDocument();
+    expect(screen.queryByTestId("throughput-total")).not.toBeInTheDocument();
+  });
+
+  it("series data uses [timestamp, value] pairs for time axis", () => {
+    const data: GraphPoint[] = [
+      { timestamp: "2024-01-01T00:00:00Z", values: { Total: 1000 } },
+      { timestamp: "2024-01-01T00:00:01Z", values: { Total: 2000 } },
+    ];
+    mockUseGraphData.mockReturnValue(data);
+    render(<GraphTab connection={null} />);
+
+    const options = lastOptions() as { series?: Array<{ data?: unknown[][] }> };
+    const seriesData = options.series?.[0]?.data;
+    expect(seriesData).toBeDefined();
+    expect(seriesData![0]).toEqual(["2024-01-01T00:00:00Z", 1000]);
+    expect(seriesData![1]).toEqual(["2024-01-01T00:00:01Z", 2000]);
   });
 });

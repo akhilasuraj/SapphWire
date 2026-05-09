@@ -3,13 +3,13 @@ import type { HubConnection } from "@microsoft/signalr";
 import * as echarts from "echarts";
 import {
   useGraphData,
+  getRangeSeconds,
   type TimePill,
   type FilterPill,
   type YAxisScale,
   type GraphPoint,
 } from "../useGraphData";
 import { useAlerts } from "../useAlerts";
-import { SearchIcon } from "./ui/icons";
 
 interface Props {
   connection: HubConnection | null;
@@ -53,6 +53,13 @@ function formatRate(bytes: number): string {
   return `${bytes} B/s`;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
+  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
+  if (bytes >= 1_000) return `${(bytes / 1_000).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
+
 function yAxisMax(scale: YAxisScale): number | undefined {
   switch (scale) {
     case "Auto":
@@ -89,6 +96,21 @@ export default function GraphTab({ connection }: Props) {
   const { alertTimestamps } = useAlerts(connection);
   const chartRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
+  const prevTimePillRef = useRef<TimePill | null>(null);
+
+  const isSpeedView = timePill === "5 Minutes";
+  const formatValue = isSpeedView ? formatRate : formatBytes;
+
+  const bucketTotals = data.map((d) =>
+    Object.values(d.values).reduce((a, b) => a + b, 0),
+  );
+  const peakValue = bucketTotals.length > 0 ? Math.max(...bucketTotals) : 0;
+  const totalVolume = bucketTotals.reduce((a, b) => a + b, 0);
+
+  const latest = data.length > 0 ? data[data.length - 1] : undefined;
+  const latestTotal = latest
+    ? Object.values(latest.values).reduce((a, b) => a + b, 0)
+    : 0;
 
   useEffect(() => {
     if (!chartRef.current) return;
@@ -108,17 +130,23 @@ export default function GraphTab({ connection }: Props) {
     if (!instanceRef.current) return;
 
     const seriesNames = extractSeriesNames(data);
-    const timestamps = data.map((d) => d.timestamp);
     const maxY = yAxisMax(yAxisScale);
+
+    const now = Date.now();
+    const rangeMs = getRangeSeconds(timePill) * 1000;
+
+    const resetZoom = prevTimePillRef.current !== timePill;
+    prevTimePillRef.current = timePill;
 
     const series = seriesNames.map((name, i) => ({
       name,
       type: "line",
       stack: "total",
+      smooth: true,
       areaStyle: { opacity: 0.85 },
       lineStyle: { width: 2.2, color: "#2E2A4A" },
       symbol: "none",
-      data: data.map((d) => d.values[name] ?? 0),
+      data: data.map((d) => [d.timestamp, d.values[name] ?? 0]),
       color: SERIES_COLORS[i % SERIES_COLORS.length],
       markLine:
         i === 0
@@ -137,122 +165,108 @@ export default function GraphTab({ connection }: Props) {
           : undefined,
     }));
 
-    instanceRef.current.setOption(
-      {
-        animation: false,
-        tooltip: {
-          trigger: "axis",
-          backgroundColor: "#FFFCF5",
-          borderColor: "#2E2A4A",
-          borderWidth: 2,
-          textStyle: {
-            color: "#2E2A4A",
-            fontFamily: "Nunito",
-            fontWeight: 600,
-          },
-          formatter: (
-            params: Array<{
-              seriesName: string;
-              value: number;
-              axisValueLabel: string;
-            }>,
-          ) => {
-            if (!Array.isArray(params) || params.length === 0) return "";
-            const time = new Date(
-              params[0].axisValueLabel,
-            ).toLocaleTimeString();
-            const lines = params.map(
-              (p) => `${p.seriesName}: ${formatRate(p.value)}`,
-            );
-            return `${time}<br/>${lines.join("<br/>")}`;
-          },
+    const option: Record<string, unknown> = {
+      animation: false,
+      tooltip: {
+        trigger: "axis",
+        backgroundColor: "#FFFCF5",
+        borderColor: "#2E2A4A",
+        borderWidth: 2,
+        textStyle: {
+          color: "#2E2A4A",
+          fontFamily: "Nunito",
+          fontWeight: 600,
         },
-        legend:
-          seriesNames.length > 1
-            ? {
-                data: seriesNames,
-                textStyle: { color: "#2E2A4A", fontFamily: "Nunito" },
-                top: 0,
-              }
-            : undefined,
-        grid: {
-          left: 60,
-          right: 20,
-          top: seriesNames.length > 1 ? 40 : 20,
-          bottom: 80,
+        formatter: (
+          params: Array<{
+            seriesName: string;
+            value: number | [string, number];
+            axisValueLabel: string;
+          }>,
+        ) => {
+          if (!Array.isArray(params) || params.length === 0) return "";
+          const time = new Date(
+            params[0].axisValueLabel,
+          ).toLocaleTimeString();
+          const lines = params.map((p) => {
+            const val = Array.isArray(p.value) ? p.value[1] : p.value;
+            return `${p.seriesName}: ${formatValue(val)}`;
+          });
+          return `${time}<br/>${lines.join("<br/>")}`;
         },
-        xAxis: {
-          type: "category",
-          data: timestamps,
-          axisLabel: {
-            formatter: (val: string) => new Date(val).toLocaleTimeString(),
-            color: "#4A4670",
-            fontFamily: "JetBrains Mono",
-          },
-          axisLine: { lineStyle: { color: "#2E2A4A", width: 2 } },
-          splitLine: { show: false },
-        },
-        yAxis: {
-          type: "value",
-          max: maxY,
-          axisLabel: {
-            formatter: (val: number) => formatRate(val),
-            color: "#4A4670",
-            fontFamily: "JetBrains Mono",
-          },
-          axisLine: { show: false },
-          splitLine: {
-            lineStyle: {
-              color: "#2E2A4A",
-              type: "dashed",
-              opacity: 0.18,
-            },
-          },
-        },
-        dataZoom: [
-          {
-            type: "inside",
-            start: 0,
-            end: 100,
-          },
-          {
-            type: "slider",
-            start: 0,
-            end: 100,
-            height: 24,
-            bottom: 14,
-            borderColor: "#2E2A4A",
-            backgroundColor: "#FDF5E6",
-            fillerColor: "rgba(167,147,240,0.25)",
-            handleStyle: { color: "#A793F0", borderColor: "#2E2A4A" },
-            textStyle: { color: "#4A4670" },
-            dataBackground: {
-              lineStyle: { color: "#8782AA" },
-              areaStyle: { color: "#FDF5E6" },
-            },
-          },
-        ],
-        series,
       },
-      true,
-    );
-  }, [data, yAxisScale, alertTimestamps]);
+      legend:
+        seriesNames.length > 1
+          ? {
+              data: seriesNames,
+              textStyle: { color: "#2E2A4A", fontFamily: "Nunito" },
+              top: 0,
+            }
+          : undefined,
+      grid: {
+        left: 20,
+        right: 20,
+        top: seriesNames.length > 1 ? 40 : 20,
+        bottom: 80,
+      },
+      xAxis: {
+        type: "time",
+        min: now - rangeMs,
+        max: now,
+        axisLabel: {
+          color: "#4A4670",
+          fontFamily: "JetBrains Mono",
+        },
+        axisLine: { lineStyle: { color: "#2E2A4A", width: 2 } },
+        splitLine: { show: false },
+      },
+      yAxis: {
+        type: "value",
+        max: maxY,
+        splitNumber: 2,
+        axisLabel: { show: false },
+        axisLine: { show: false },
+        splitLine: {
+          lineStyle: {
+            color: "#2E2A4A",
+            type: "dashed",
+            opacity: 0.18,
+          },
+        },
+      },
+      series,
+    };
 
-  const latest = data.length > 0 ? data[data.length - 1] : undefined;
-  const latestTotal = latest
-    ? Object.values(latest.values).reduce((a, b) => a + b, 0)
-    : 0;
+    if (resetZoom) {
+      option.dataZoom = [
+        { type: "inside" },
+        {
+          type: "slider",
+          start: 80,
+          end: 100,
+          height: 24,
+          bottom: 14,
+          borderColor: "#2E2A4A",
+          backgroundColor: "#FDF5E6",
+          fillerColor: "rgba(167,147,240,0.25)",
+          handleStyle: { color: "#A793F0", borderColor: "#2E2A4A" },
+          textStyle: { color: "#4A4670" },
+          dataBackground: {
+            lineStyle: { color: "#8782AA" },
+            areaStyle: { color: "#FDF5E6" },
+          },
+        },
+      ];
+    }
+
+    instanceRef.current.setOption(option, { replaceMerge: ["series"] });
+  }, [data, yAxisScale, alertTimestamps, timePill, isSpeedView]);
 
   return (
     <div className="page-fade">
       <div className="section-head">
         <h1 className="section-title">Live Throughput</h1>
         <span className="sticker-tag">Live</span>
-        <div style={{ flex: 1 }} />
-        <div className="cart-search">
-          {SearchIcon}
-          <input placeholder="Find an app or host…" />
-        </div>
       </div>
 
       <div className="card" style={{ marginBottom: 18 }}>
@@ -322,6 +336,19 @@ export default function GraphTab({ connection }: Props) {
         </div>
 
         <div
+          data-testid="peak-label"
+          style={{
+            textAlign: "right",
+            fontFamily: "JetBrains Mono",
+            fontSize: 13,
+            color: "#4A4670",
+            marginBottom: 4,
+          }}
+        >
+          Peak: {formatValue(peakValue)}
+        </div>
+
+        <div
           ref={chartRef}
           data-testid="graph-chart"
           style={{
@@ -370,14 +397,35 @@ export default function GraphTab({ connection }: Props) {
             </span>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span className="row-sub">Now</span>
-            <span
-              data-testid="throughput-total"
-              className="chip mono"
-              style={{ background: "var(--mint)", fontSize: 13, padding: "4px 12px" }}
-            >
-              {formatRate(latestTotal)}
-            </span>
+            {isSpeedView ? (
+              <>
+                <span className="row-sub">Now</span>
+                <span
+                  data-testid="throughput-total"
+                  className="chip mono"
+                  style={{
+                    background: "var(--mint)",
+                    fontSize: 13,
+                    padding: "4px 12px",
+                  }}
+                >
+                  {formatRate(latestTotal)}
+                </span>
+              </>
+            ) : (
+              <span
+                data-testid="total-volume"
+                className="chip mono"
+                style={{
+                  background: "var(--mint)",
+                  fontSize: 15,
+                  padding: "6px 14px",
+                  fontWeight: 700,
+                }}
+              >
+                Total: {formatBytes(totalVolume)}
+              </span>
+            )}
           </div>
         </div>
       </div>

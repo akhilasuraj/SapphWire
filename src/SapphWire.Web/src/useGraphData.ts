@@ -34,7 +34,7 @@ function getBucketSeconds(pill: TimePill): number {
   }
 }
 
-function getRangeSeconds(pill: TimePill): number {
+export function getRangeSeconds(pill: TimePill): number {
   switch (pill) {
     case "5 Minutes":
       return 300;
