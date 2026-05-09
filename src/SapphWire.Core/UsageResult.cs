@@ -2,7 +2,7 @@ namespace SapphWire.Core;
 
 public record UsageRow(string Name, long BytesUp, long BytesDown);
 
-public record SparklinePoint(string Timestamp, long Value);
+public record SparklinePoint(string Timestamp, long BytesUp, long BytesDown);
 
 public record UsageFilters(
     IReadOnlyList<string> Left,

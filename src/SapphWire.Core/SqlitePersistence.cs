@@ -559,7 +559,8 @@ public class SqlitePersistence : IPersistence
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = $"""
             SELECT (timestamp / {bucketSec}) * {bucketSec} AS ts,
-                   SUM(bytes_up + bytes_down) AS total
+                   SUM(bytes_up) AS up,
+                   SUM(bytes_down) AS down
             FROM {table}
             WHERE {whereClause}
             GROUP BY ts
@@ -575,7 +576,8 @@ public class SqlitePersistence : IPersistence
         {
             results.Add(new SparklinePoint(
                 DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64(0)).ToString("o"),
-                reader.GetInt64(1)));
+                reader.GetInt64(1),
+                reader.GetInt64(2)));
         }
         return results;
     }

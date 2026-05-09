@@ -17,19 +17,16 @@ vi.mock("../useNetworkScope", async () => {
   return { ...actual };
 });
 
-vi.mock("echarts", () => {
-  const instance = {
-    setOption: vi.fn(),
+const echartsSetOption = vi.fn();
+vi.mock("echarts", () => ({
+  init: vi.fn(() => ({
+    setOption: echartsSetOption,
     resize: vi.fn(),
     dispose: vi.fn(),
     getWidth: vi.fn(() => 400),
     getDom: vi.fn(() => document.createElement("div")),
-  };
-  return {
-    init: vi.fn(() => instance),
-    _instance: instance,
-  };
-});
+  })),
+}));
 
 vi.mock("react-window", () => ({
   List: ({
@@ -138,11 +135,11 @@ describe("UsageTab", () => {
     );
   });
 
-  it("renders three columns", () => {
+  it("renders two columns (left and middle), no Traffic Types column", () => {
     render(<UsageTab connection={null} />);
     expect(screen.getByTestId("column-left")).toBeInTheDocument();
     expect(screen.getByTestId("column-middle")).toBeInTheDocument();
-    expect(screen.getByTestId("column-right")).toBeInTheDocument();
+    expect(screen.queryByTestId("column-right")).not.toBeInTheDocument();
   });
 
   it("renders filter pills: Apps, Publishers, Traffic", () => {
@@ -212,15 +209,14 @@ describe("UsageTab", () => {
     expect(within(col).getByText("google.com")).toBeInTheDocument();
   });
 
-  it("renders right column (Traffic) rows", () => {
+  it("does not render Traffic Types column even when data has right entries", () => {
     mockUseUsageData.mockReturnValue(
       mockData({
         right: [{ name: "HTTPS", bytesUp: 800, bytesDown: 4000 }],
       }),
     );
     render(<UsageTab connection={null} />);
-    const col = screen.getByTestId("column-right");
-    expect(within(col).getByText("HTTPS")).toBeInTheDocument();
+    expect(screen.queryByTestId("column-right")).not.toBeInTheDocument();
   });
 
   it("clicking a left column row adds it to filters", () => {
@@ -266,18 +262,9 @@ describe("UsageTab", () => {
     expect(filters.middle).toContain("google.com");
   });
 
-  it("clicking a right column row adds protocol filter", () => {
-    mockUseUsageData.mockReturnValue(
-      mockData({
-        right: [{ name: "HTTPS", bytesUp: 800, bytesDown: 4000 }],
-      }),
-    );
+  it("renders a search bar", () => {
     render(<UsageTab connection={null} />);
-    fireEvent.click(screen.getByText("HTTPS"));
-
-    const lastCall = mockUseUsageData.mock.calls[mockUseUsageData.mock.calls.length - 1];
-    const filters = lastCall[4] as UsageFilters;
-    expect(filters.right).toContain("HTTPS");
+    expect(screen.getByTestId("usage-search")).toBeInTheDocument();
   });
 
   it("multi-select within a column uses OR (multiple items)", () => {
@@ -312,9 +299,10 @@ describe("UsageTab", () => {
     expect(screen.getByTestId("donut-chart")).toBeInTheDocument();
   });
 
-  it("renders bottom sparkline strip", () => {
+  it("renders activity chart instead of sparkline", () => {
     render(<UsageTab connection={null} />);
-    expect(screen.getByTestId("usage-sparkline")).toBeInTheDocument();
+    expect(screen.getByTestId("activity-chart")).toBeInTheDocument();
+    expect(screen.queryByTestId("usage-sparkline")).not.toBeInTheDocument();
   });
 
   it("each row shows formatted byte totals", () => {
@@ -341,10 +329,10 @@ describe("UsageTab", () => {
     expect(bars.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("renders column headers", () => {
+  it("renders column headers without Traffic Types", () => {
     render(<UsageTab connection={null} />);
     expect(screen.getByText("Hosts")).toBeInTheDocument();
-    expect(screen.getByText("Traffic Types")).toBeInTheDocument();
+    expect(screen.queryByText("Traffic Types")).not.toBeInTheDocument();
   });
 
   it("left column header matches active pill", () => {
@@ -434,5 +422,111 @@ describe("UsageTab", () => {
     fireEvent.click(screen.getByTestId("scope-Lan"));
     expect(screen.getByTestId("scope-Lan")).toHaveClass("active");
     expect(screen.getByTestId("scope-All")).not.toHaveClass("active");
+  });
+
+  it("renders recent activity chart container", () => {
+    render(<UsageTab connection={null} />);
+    expect(screen.getByTestId("activity-chart")).toBeInTheDocument();
+  });
+
+  it("recent activity chart receives sparkline data with bytesUp and bytesDown", () => {
+    mockUseUsageData.mockReturnValue(
+      mockData({
+        sparkline: [
+          { timestamp: "2024-01-01T00:00:00Z", bytesUp: 100, bytesDown: 500 },
+          { timestamp: "2024-01-01T00:05:00Z", bytesUp: 200, bytesDown: 600 },
+        ],
+      }),
+    );
+    render(<UsageTab connection={null} />);
+    const activityCall = echartsSetOption.mock.calls.find(
+      ([opt]: [{ series?: { name: string }[] }]) =>
+        Array.isArray(opt.series) && opt.series.some((s: { name: string }) => s.name === "Upload"),
+    );
+    expect(activityCall).toBeDefined();
+    const option = activityCall![0];
+    expect(option.series).toHaveLength(2);
+    expect(option.series[0].name).toBe("Upload");
+    expect(option.series[1].name).toBe("Download");
+  });
+
+  it("search bar filters left column rows by name", () => {
+    mockUseUsageData.mockReturnValue(
+      mockData({
+        left: [
+          { name: "Chrome", bytesUp: 1000, bytesDown: 5000 },
+          { name: "Discord", bytesUp: 200, bytesDown: 800 },
+        ],
+      }),
+    );
+    render(<UsageTab connection={null} />);
+    fireEvent.change(screen.getByTestId("usage-search"), {
+      target: { value: "chr" },
+    });
+    const col = screen.getByTestId("column-left");
+    expect(within(col).getByText("Chrome")).toBeInTheDocument();
+    expect(within(col).queryByText("Discord")).not.toBeInTheDocument();
+  });
+
+  it("search bar filters middle column rows by name", () => {
+    mockUseUsageData.mockReturnValue(
+      mockData({
+        middle: [
+          { name: "google.com", bytesUp: 500, bytesDown: 3000 },
+          { name: "discord.gg", bytesUp: 100, bytesDown: 400 },
+        ],
+      }),
+    );
+    render(<UsageTab connection={null} />);
+    fireEvent.change(screen.getByTestId("usage-search"), {
+      target: { value: "google" },
+    });
+    const col = screen.getByTestId("column-middle");
+    expect(within(col).getByText("google.com")).toBeInTheDocument();
+    expect(within(col).queryByText("discord.gg")).not.toBeInTheDocument();
+  });
+
+  it("search is case-insensitive", () => {
+    mockUseUsageData.mockReturnValue(
+      mockData({
+        left: [
+          { name: "Chrome", bytesUp: 1000, bytesDown: 5000 },
+          { name: "Discord", bytesUp: 200, bytesDown: 800 },
+        ],
+      }),
+    );
+    render(<UsageTab connection={null} />);
+    fireEvent.change(screen.getByTestId("usage-search"), {
+      target: { value: "CHROME" },
+    });
+    const col = screen.getByTestId("column-left");
+    expect(within(col).getByText("Chrome")).toBeInTheDocument();
+    expect(within(col).queryByText("Discord")).not.toBeInTheDocument();
+  });
+
+  it("empty search shows all rows", () => {
+    mockUseUsageData.mockReturnValue(
+      mockData({
+        left: [
+          { name: "Chrome", bytesUp: 1000, bytesDown: 5000 },
+          { name: "Discord", bytesUp: 200, bytesDown: 800 },
+        ],
+      }),
+    );
+    render(<UsageTab connection={null} />);
+    fireEvent.change(screen.getByTestId("usage-search"), {
+      target: { value: "chr" },
+    });
+    fireEvent.change(screen.getByTestId("usage-search"), {
+      target: { value: "" },
+    });
+    const col = screen.getByTestId("column-left");
+    expect(within(col).getByText("Chrome")).toBeInTheDocument();
+    expect(within(col).getByText("Discord")).toBeInTheDocument();
+  });
+
+  it("does not render the old sparkline SVG", () => {
+    render(<UsageTab connection={null} />);
+    expect(screen.queryByTestId("usage-sparkline")).not.toBeInTheDocument();
   });
 });

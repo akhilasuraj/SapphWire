@@ -111,7 +111,7 @@ describe("useUsageData", () => {
       right: [{ name: "HTTPS", bytesUp: 90, bytesDown: 450 }],
       totalUp: 100,
       totalDown: 500,
-      sparkline: [{ timestamp: "2024-01-01T00:00:00Z", value: 600 }],
+      sparkline: [{ timestamp: "2024-01-01T00:00:00Z", bytesUp: 100, bytesDown: 500 }],
     };
     conn.invoke.mockResolvedValue(mockData);
 

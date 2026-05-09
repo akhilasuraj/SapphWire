@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 import * as echarts from "echarts";
 import { List } from "react-window";
@@ -12,7 +12,7 @@ import {
 } from "../useUsageData";
 import { useNetworkScope, type NetworkScope } from "../useNetworkScope";
 import { LetterSticker, Sticker, colorFromString } from "./ui/Sticker";
-import { HostGlyph, TrafficGlyph } from "./ui/icons";
+import { HostGlyph } from "./ui/icons";
 
 interface Props {
   connection: HubConnection | null;
@@ -23,7 +23,6 @@ const PILLS: UsagePill[] = ["Apps", "Publishers", "Traffic"];
 const COLUMN_DOTS: Record<string, string> = {
   left: "var(--mint)",
   middle: "var(--lavender)",
-  right: "var(--pink)",
 };
 
 function formatBytes(bytes: number): string {
@@ -46,7 +45,7 @@ function UsageRowItem({
   maxBytes: number;
   isSelected: boolean;
   onClick: () => void;
-  column: "left" | "middle" | "right";
+  column: "left" | "middle";
   showFavicon: boolean;
 }) {
   const total = row.bytesUp + row.bytesDown;
@@ -83,8 +82,6 @@ function UsageRowItem({
         />
       ) : column === "middle" ? (
         <Sticker color={stickerColor} size="sm" glyph={HostGlyph} />
-      ) : column === "right" ? (
-        <Sticker color={stickerColor} size="sm" glyph={TrafficGlyph} />
       ) : (
         <LetterSticker name={row.name} color={stickerColor} size="sm" />
       )}
@@ -150,7 +147,7 @@ function UsageColumn({
   rows: UsageRow[];
   selectedNames: string[];
   onToggle: (name: string) => void;
-  column: "left" | "middle" | "right";
+  column: "left" | "middle";
   showFavicon: boolean;
   dotColor: string;
 }) {
@@ -379,36 +376,85 @@ function DonutChart({
   );
 }
 
-function UsageSparkline({ data }: { data: SparklinePoint[] }) {
-  let points: string;
-  if (data.length > 0) {
-    const values = data.map((d) => d.value);
-    const max = Math.max(...values, 1);
-    const h = 30;
-    const w = 100;
-    const step = data.length > 1 ? w / (data.length - 1) : 0;
-    points = values
-      .map((v, i) => `${i * step},${h - (v / max) * h + 1}`)
-      .join(" ");
-  } else {
-    points = "0,15 50,15 100,15";
-  }
+function ActivityChart({ data }: { data: SparklinePoint[] }) {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const instanceRef = useRef<echarts.ECharts | null>(null);
+
+  useEffect(() => {
+    if (!chartRef.current) return;
+    instanceRef.current = echarts.init(chartRef.current);
+    return () => {
+      instanceRef.current?.dispose();
+      instanceRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!instanceRef.current) return;
+
+    const timestamps = data.map((d) => d.timestamp);
+    const uploadData = data.map((d) => d.bytesUp);
+    const downloadData = data.map((d) => d.bytesDown);
+
+    instanceRef.current.setOption(
+      {
+        animation: false,
+        tooltip: {
+          trigger: "axis",
+          backgroundColor: "#FFFCF5",
+          borderColor: "#2E2A4A",
+          borderWidth: 2,
+          textStyle: { color: "#2E2A4A", fontFamily: "Nunito", fontSize: 12 },
+        },
+        legend: {
+          data: ["Upload", "Download"],
+          bottom: 0,
+          textStyle: { fontFamily: "Nunito", fontSize: 11 },
+        },
+        grid: { left: 40, right: 16, top: 10, bottom: 34 },
+        xAxis: {
+          type: "category",
+          data: timestamps,
+          axisLabel: { show: false },
+          axisLine: { lineStyle: { color: "#E0DCD2" } },
+          axisTick: { show: false },
+        },
+        yAxis: {
+          type: "value",
+          axisLabel: { show: false },
+          splitLine: { lineStyle: { color: "#F0ECE3" } },
+        },
+        series: [
+          {
+            name: "Upload",
+            type: "line",
+            smooth: true,
+            symbol: "none",
+            data: uploadData,
+            lineStyle: { color: "#FFCDA8", width: 2 },
+            areaStyle: { color: "rgba(255, 205, 168, 0.15)" },
+          },
+          {
+            name: "Download",
+            type: "line",
+            smooth: true,
+            symbol: "none",
+            data: downloadData,
+            lineStyle: { color: "#FFE69A", width: 2 },
+            areaStyle: { color: "rgba(255, 230, 154, 0.15)" },
+          },
+        ],
+      },
+      true,
+    );
+  }, [data]);
 
   return (
-    <svg
-      data-testid="usage-sparkline"
-      style={{ width: "100%", height: 40 }}
-      viewBox="0 0 100 32"
-      preserveAspectRatio="none"
-    >
-      <polyline
-        points={points}
-        fill="none"
-        stroke="#2E2A4A"
-        strokeWidth="2"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <div
+      ref={chartRef}
+      data-testid="activity-chart"
+      style={{ width: "100%", height: 180 }}
+    />
   );
 }
 
@@ -421,9 +467,22 @@ export default function UsageTab({ connection }: Props) {
     middle: [],
     right: [],
   });
+  const [search, setSearch] = useState("");
   const { scope, changeScope } = useNetworkScope();
 
   const data = useUsageData(connection, period, offset, pill, filters, scope);
+
+  const filteredLeft = useMemo(() => {
+    if (!search) return data.left;
+    const q = search.toLowerCase();
+    return data.left.filter((r) => r.name.toLowerCase().includes(q));
+  }, [data.left, search]);
+
+  const filteredMiddle = useMemo(() => {
+    if (!search) return data.middle;
+    const q = search.toLowerCase();
+    return data.middle.filter((r) => r.name.toLowerCase().includes(q));
+  }, [data.middle, search]);
 
   const handlePeriodChange = useCallback((newPeriod: UsagePeriod) => {
     setPeriod(newPeriod);
@@ -436,7 +495,7 @@ export default function UsageTab({ connection }: Props) {
   }, []);
 
   const toggleFilter = useCallback(
-    (column: "left" | "middle" | "right", name: string) => {
+    (column: "left" | "middle", name: string) => {
       setFilters((prev) => {
         const current = prev[column];
         const next = current.includes(name)
@@ -453,6 +512,22 @@ export default function UsageTab({ connection }: Props) {
       <div className="section-head">
         <h1 className="section-title">Usage</h1>
         <div style={{ flex: 1 }} />
+        <input
+          data-testid="usage-search"
+          type="text"
+          placeholder="Search apps or hosts…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="search-input"
+          style={{
+            padding: "6px 12px",
+            borderRadius: 8,
+            border: "2px solid var(--ink-faint)",
+            fontFamily: "Nunito",
+            fontSize: 13,
+            minWidth: 180,
+          }}
+        />
         <div className="pill-row">
           {PILLS.map((p) => (
             <button
@@ -510,7 +585,7 @@ export default function UsageTab({ connection }: Props) {
           testId="column-left"
           header={pill}
           headerTestId="column-left-header"
-          rows={data.left}
+          rows={filteredLeft}
           selectedNames={filters.left}
           onToggle={(name) => toggleFilter("left", name)}
           column="left"
@@ -521,23 +596,12 @@ export default function UsageTab({ connection }: Props) {
           testId="column-middle"
           header="Hosts"
           headerTestId="column-middle-header"
-          rows={data.middle}
+          rows={filteredMiddle}
           selectedNames={filters.middle}
           onToggle={(name) => toggleFilter("middle", name)}
           column="middle"
           showFavicon={true}
           dotColor={COLUMN_DOTS.middle}
-        />
-        <UsageColumn
-          testId="column-right"
-          header="Traffic Types"
-          headerTestId="column-right-header"
-          rows={data.right}
-          selectedNames={filters.right}
-          onToggle={(name) => toggleFilter("right", name)}
-          column="right"
-          showFavicon={false}
-          dotColor={COLUMN_DOTS.right}
         />
       </div>
 
@@ -546,7 +610,7 @@ export default function UsageTab({ connection }: Props) {
           <span className="dot" style={{ background: "var(--sky)" }} />
           Recent activity
         </div>
-        <UsageSparkline data={data.sparkline} />
+        <ActivityChart data={data.sparkline} />
       </div>
     </div>
   );

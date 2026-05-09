@@ -19,7 +19,8 @@ export interface UsageFilters {
 
 export interface SparklinePoint {
   timestamp: string;
-  value: number;
+  bytesUp: number;
+  bytesDown: number;
 }
 
 export interface UsageData {
