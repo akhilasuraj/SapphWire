@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish Release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = $tag -replace '^v', ''
+          $isPrerelease = if ($tag -match '-') { 'true' } else { 'false' }
+          $artifact = "SapphWire-$version-win-x64.exe"
+          "tag=$tag"                   | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "version=$version"           | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "prerelease=$isPrerelease"   | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "artifact=$artifact"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: src/SapphWire.Web/package-lock.json
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install web dependencies
+        working-directory: src/SapphWire.Web
+        run: npm ci
+
+      - name: Web typecheck
+        working-directory: src/SapphWire.Web
+        run: npm run typecheck
+
+      - name: Web tests
+        working-directory: src/SapphWire.Web
+        run: npm run test
+
+      - name: Web build
+        working-directory: src/SapphWire.Web
+        run: npm run build
+
+      - name: .NET restore
+        run: dotnet restore SapphWire.sln
+
+      - name: .NET tests
+        run: dotnet test SapphWire.sln --configuration Release --verbosity normal
+
+      - name: Publish self-contained exe
+        run: dotnet publish src/SapphWire.Host/SapphWire.Host.csproj --configuration Release --runtime win-x64 --self-contained true -p:Version=${{ steps.version.outputs.version }} -p:PublishSingleFile=true --output publish
+
+      - name: Stage release artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          Copy-Item "publish/SapphWire.Host.exe" "artifacts/${{ steps.version.outputs.artifact }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          generate_release_notes: true
+          prerelease: ${{ steps.version.outputs.prerelease == 'true' }}
+          files: artifacts/${{ steps.version.outputs.artifact }}
+          append_body: true
+          body: |
+
+            ---
+
+            **Install**
+
+            1. Download `${{ steps.version.outputs.artifact }}` below.
+            2. Windows SmartScreen will warn (the build is unsigned) — click *More info* → *Run anyway*.
+            3. Launch from an **elevated** terminal or right-click → *Run as administrator*. ETW packet capture requires admin privileges.
