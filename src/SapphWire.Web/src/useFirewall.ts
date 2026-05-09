@@ -62,7 +62,7 @@ export function useFirewall(
     fetch("/api/firewall/state")
       .then((r) => (r.ok ? r.json() : null))
       .then((data: FirewallState | null) => {
-        if (data) setBlockedApps(data.blockedApps);
+        if (data) onStateUpdate(data);
       })
       .catch(() => {});
 
