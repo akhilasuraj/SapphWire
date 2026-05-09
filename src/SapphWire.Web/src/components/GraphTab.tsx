@@ -106,11 +106,7 @@ export default function GraphTab({ connection }: Props) {
   );
   const peakValue = bucketTotals.length > 0 ? Math.max(...bucketTotals) : 0;
   const totalVolume = bucketTotals.reduce((a, b) => a + b, 0);
-
-  const latest = data.length > 0 ? data[data.length - 1] : undefined;
-  const latestTotal = latest
-    ? Object.values(latest.values).reduce((a, b) => a + b, 0)
-    : 0;
+  const latestTotal = bucketTotals.length > 0 ? bucketTotals[bucketTotals.length - 1] : 0;
 
   useEffect(() => {
     if (!chartRef.current) return;

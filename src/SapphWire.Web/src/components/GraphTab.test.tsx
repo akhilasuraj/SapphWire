@@ -257,8 +257,6 @@ describe("GraphTab", () => {
     expect(seriesWithMarkers?.length).toBeGreaterThanOrEqual(1);
   });
 
-  // --- Issue #16: New acceptance criteria tests ---
-
   it("does not render search bar on Graph tab", () => {
     render(<GraphTab connection={null} />);
     expect(screen.queryByPlaceholderText("Find an app or host…")).not.toBeInTheDocument();
