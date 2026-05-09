@@ -160,6 +160,40 @@ try
         }
     });
 
+    app.MapPost("/api/firewall/suspend", async (
+        IFirewall fw,
+        IHubContext<DashboardHub> hub) =>
+    {
+        try
+        {
+            fw.Suspend();
+            var state = fw.GetState();
+            await hub.Clients.Group("firewall").SendAsync("FirewallStateChanged", state);
+            return Results.Ok(state);
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(ex.Message);
+        }
+    });
+
+    app.MapPost("/api/firewall/resume", async (
+        IFirewall fw,
+        IHubContext<DashboardHub> hub) =>
+    {
+        try
+        {
+            fw.Resume();
+            var state = fw.GetState();
+            await hub.Clients.Group("firewall").SendAsync("FirewallStateChanged", state);
+            return Results.Ok(state);
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(ex.Message);
+        }
+    });
+
     app.MapGet("/api/firewall/installed-apps", (IInstalledAppsProvider provider) =>
         provider.GetInstalledApps());
 

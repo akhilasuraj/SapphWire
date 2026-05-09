@@ -9,16 +9,19 @@ export interface BlockedAppInfo {
 
 export interface FirewallState {
   blockedApps: BlockedAppInfo[];
+  isSuspended: boolean;
 }
 
 export interface FirewallHookResult {
-  state: { blockedApps: BlockedAppInfo[]; error: string | null };
+  state: { blockedApps: BlockedAppInfo[]; isSuspended: boolean; error: string | null };
   blockApp: (appId: string) => Promise<void>;
   unblockApp: (appId: string) => Promise<void>;
   blockExe: (appId: string, exePath: string) => Promise<void>;
   unblockExe: (appId: string, exePath: string) => Promise<void>;
   isBlocked: (appId: string) => boolean;
   isExeBlocked: (appId: string, exePath: string) => boolean;
+  suspend: () => Promise<void>;
+  resume: () => Promise<void>;
 }
 
 async function postFirewall(
@@ -41,10 +44,12 @@ export function useFirewall(
   connection: HubConnection | null,
 ): FirewallHookResult {
   const [blockedApps, setBlockedApps] = useState<BlockedAppInfo[]>([]);
+  const [isSuspended, setIsSuspended] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const onStateUpdate = useCallback((state: FirewallState) => {
     setBlockedApps(state.blockedApps);
+    setIsSuspended(state.isSuspended ?? false);
   }, []);
 
   useEffect(() => {
@@ -66,6 +71,7 @@ export function useFirewall(
       connection.off("FirewallStateSnapshot", onStateUpdate);
       connection.off("FirewallStateChanged", onStateUpdate);
       setBlockedApps([]);
+      setIsSuspended(false);
       setError(null);
     };
   }, [connection, onStateUpdate]);
@@ -118,13 +124,25 @@ export function useFirewall(
     [blockedApps],
   );
 
+  const suspend = useCallback(
+    () => callFirewall("/api/firewall/suspend", { appId: "" }),
+    [callFirewall],
+  );
+
+  const resume = useCallback(
+    () => callFirewall("/api/firewall/resume", { appId: "" }),
+    [callFirewall],
+  );
+
   return {
-    state: { blockedApps, error },
+    state: { blockedApps, isSuspended, error },
     blockApp,
     unblockApp,
     blockExe,
     unblockExe,
     isBlocked,
     isExeBlocked,
+    suspend,
+    resume,
   };
 }

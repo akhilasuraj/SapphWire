@@ -7,10 +7,94 @@ public class WindowsFirewall : IFirewall
     private const string RulePrefix = "SapphWire: Block ";
     private readonly ILogger<WindowsFirewall> _logger;
     private readonly object _lock = new();
+    private bool _suspended;
 
     public WindowsFirewall(ILogger<WindowsFirewall> logger)
     {
         _logger = logger;
+    }
+
+    public bool IsSuspended
+    {
+        get { lock (_lock) { return _suspended; } }
+    }
+
+    public void Suspend()
+    {
+        lock (_lock)
+        {
+            if (_suspended) return;
+            try
+            {
+                var policy = CreatePolicy();
+                foreach (dynamic rule in policy.Rules)
+                {
+                    string name = rule.Name;
+                    if (!name.StartsWith(RulePrefix, StringComparison.Ordinal))
+                        continue;
+                    rule.Enabled = false;
+                }
+                _suspended = true;
+                _logger.LogInformation("Firewall suspended — all SapphWire-owned rules disabled");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to suspend firewall");
+                throw;
+            }
+        }
+    }
+
+    public void Resume()
+    {
+        lock (_lock)
+        {
+            if (!_suspended) return;
+            try
+            {
+                var policy = CreatePolicy();
+                foreach (dynamic rule in policy.Rules)
+                {
+                    string name = rule.Name;
+                    if (!name.StartsWith(RulePrefix, StringComparison.Ordinal))
+                        continue;
+                    rule.Enabled = true;
+                }
+                _suspended = false;
+                _logger.LogInformation("Firewall resumed — all SapphWire-owned rules re-enabled");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to resume firewall");
+                throw;
+            }
+        }
+    }
+
+    public void RemoveAllRules()
+    {
+        lock (_lock)
+        {
+            try
+            {
+                var policy = CreatePolicy();
+                var toRemove = new List<string>();
+                foreach (dynamic rule in policy.Rules)
+                {
+                    string name = rule.Name;
+                    if (name.StartsWith(RulePrefix, StringComparison.Ordinal))
+                        toRemove.Add(name);
+                }
+                foreach (var name in toRemove)
+                    policy.Rules.Remove(name);
+                _logger.LogInformation("Removed {Count} SapphWire-owned firewall rules", toRemove.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to remove all SapphWire-owned rules");
+                throw;
+            }
+        }
     }
 
     public FirewallStateDto GetState()
@@ -47,7 +131,7 @@ public class WindowsFirewall : IFirewall
                     new BlockedAppEntry(kv.Key, kv.Key, kv.Value.AsReadOnly())
                 ).ToList();
 
-                return new FirewallStateDto(entries);
+                return new FirewallStateDto(entries, _suspended);
             }
             catch (Exception ex)
             {

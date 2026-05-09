@@ -7,7 +7,8 @@ public record BlockedAppEntry(
 );
 
 public record FirewallStateDto(
-    IReadOnlyList<BlockedAppEntry> BlockedApps
+    IReadOnlyList<BlockedAppEntry> BlockedApps,
+    bool IsSuspended = false
 );
 
 public interface IFirewall
@@ -17,4 +18,8 @@ public interface IFirewall
     void UnblockApp(string appName);
     void BlockExe(string appName, string exePath);
     void UnblockExe(string appName, string exePath);
+    bool IsSuspended { get; }
+    void Suspend();
+    void Resume();
+    void RemoveAllRules();
 }

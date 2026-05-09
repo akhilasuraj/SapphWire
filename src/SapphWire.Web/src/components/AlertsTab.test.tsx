@@ -19,13 +19,15 @@ function makeAlert(overrides: Partial<AlertRecord> = {}): AlertRecord {
 }
 
 const defaultFirewall = {
-  state: { blockedApps: [], error: null },
+  state: { blockedApps: [], isSuspended: false, error: null },
   blockApp: vi.fn().mockResolvedValue(undefined),
   unblockApp: vi.fn().mockResolvedValue(undefined),
   blockExe: vi.fn().mockResolvedValue(undefined),
   unblockExe: vi.fn().mockResolvedValue(undefined),
   isBlocked: vi.fn().mockReturnValue(false),
   isExeBlocked: vi.fn().mockReturnValue(false),
+  suspend: vi.fn().mockResolvedValue(undefined),
+  resume: vi.fn().mockResolvedValue(undefined),
 };
 
 describe("AlertsTab", () => {
