@@ -18,7 +18,7 @@ export function useRankedApps(
 ): RankedApp[] {
   const [ranked, setRanked] = useState<RankedApp[]>([]);
 
-  const fetch = useCallback(() => {
+  const poll = useCallback(() => {
     if (!connection) return;
     connection
       .invoke<RankedApp[]>("GetRankedApps", includeInstalled)
@@ -27,10 +27,10 @@ export function useRankedApps(
   }, [connection, includeInstalled]);
 
   useEffect(() => {
-    fetch();
-    const id = setInterval(fetch, POLL_INTERVAL);
+    poll();
+    const id = setInterval(poll, POLL_INTERVAL);
     return () => clearInterval(id);
-  }, [fetch]);
+  }, [poll]);
 
   return ranked;
 }
