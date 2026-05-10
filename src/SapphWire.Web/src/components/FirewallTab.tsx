@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { HubConnection } from "@microsoft/signalr";
 import { useActiveApps, type ActiveAppRow } from "../useActiveApps";
+import { useRankedApps } from "../useRankedApps";
 import { useConnections, type ConnectionDetail } from "../useConnections";
 import { useFirewall } from "../useFirewall";
 import { LetterSticker, Sticker, colorFromString } from "./ui/Sticker";
@@ -13,10 +14,23 @@ interface Props {
   onHighlightHandled?: () => void;
 }
 
+interface MergedAppRow extends ActiveAppRow {
+  cumulativeBytes: number;
+  isInstalledOnly: boolean;
+}
+
 function formatRate(bytes: number): string {
   if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB/s`;
   if (bytes >= 1_000) return `${(bytes / 1_000).toFixed(1)} KB/s`;
   return `${bytes} B/s`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1_000_000_000)
+    return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
+  if (bytes >= 1_000_000) return `${(bytes / 1_000_000).toFixed(1)} MB`;
+  if (bytes >= 1_000) return `${(bytes / 1_000).toFixed(1)} KB`;
+  return `${bytes} B`;
 }
 
 function Sparkline({ appId, data }: { appId: string; data?: number[] }) {
@@ -134,7 +148,7 @@ function AppRow({
   onUnblockExe,
   isExeBlocked,
 }: {
-  app: ActiveAppRow;
+  app: MergedAppRow;
   isExpanded: boolean;
   onToggle: () => void;
   sparkData?: number[];
@@ -191,6 +205,13 @@ function AppRow({
             )}
           </div>
         </div>
+        <span
+          data-testid={`cumulative-${app.appId}`}
+          className="mono"
+          style={{ fontSize: 11, minWidth: 70, textAlign: "right", color: "var(--ink-mute)" }}
+        >
+          {formatBytes(app.cumulativeBytes)}
+        </span>
         <span
           data-testid={`rate-up-${app.appId}`}
           className="mono"
@@ -325,7 +346,9 @@ function CollapsibleSection({
 }
 
 export default function FirewallTab({ connection, highlightAppId, onHighlightHandled }: Props) {
-  const { apps, sparkHistory } = useActiveApps(connection);
+  const { apps: activeApps, sparkHistory } = useActiveApps(connection);
+  const [showInstalled, setShowInstalled] = useState(false);
+  const rankedApps = useRankedApps(connection, showInstalled);
   const {
     state: firewallState,
     blockApp,
@@ -340,6 +363,42 @@ export default function FirewallTab({ connection, highlightAppId, onHighlightHan
   const [expandedAppId, setExpandedAppId] = useState<string | null>(null);
   const connections = useConnections(connection, expandedAppId);
 
+  const apps: MergedAppRow[] = useMemo(() => {
+    const activeMap = new Map(activeApps.map((a) => [a.appId, a]));
+    const result: MergedAppRow[] = [];
+    const seen = new Set<string>();
+
+    for (const ranked of rankedApps) {
+      const active = activeMap.get(ranked.appId);
+      result.push({
+        appId: ranked.appId,
+        displayName: active?.displayName ?? ranked.appId,
+        iconUrl: active?.iconUrl ?? `/api/icons/${ranked.appId}`,
+        up: active?.up ?? 0,
+        down: active?.down ?? 0,
+        sparkPoint: active?.sparkPoint ?? 0,
+        topEndpoint: active?.topEndpoint ?? "",
+        endpointCount: active?.endpointCount ?? 0,
+        countryCode: active?.countryCode ?? null,
+        cumulativeBytes: ranked.cumulativeBytes,
+        isInstalledOnly: ranked.isInstalledOnly,
+      });
+      seen.add(ranked.appId);
+    }
+
+    for (const active of activeApps) {
+      if (!seen.has(active.appId)) {
+        result.push({
+          ...active,
+          cumulativeBytes: 0,
+          isInstalledOnly: false,
+        });
+      }
+    }
+
+    return result;
+  }, [rankedApps, activeApps]);
+
   useEffect(() => {
     if (!highlightAppId) return;
     setExpandedAppId(highlightAppId);
@@ -352,7 +411,7 @@ export default function FirewallTab({ connection, highlightAppId, onHighlightHan
   }, [highlightAppId, onHighlightHandled]);
 
   const blockedApps = apps.filter((a) => isBlocked(a.appId));
-  const activeApps = apps.filter((a) => !isBlocked(a.appId));
+  const unblockedApps = apps.filter((a) => !isBlocked(a.appId));
 
   const blockedOnlyFromState = firewallState.blockedApps.filter(
     (b) => !apps.some((a) => a.appId === b.appId),
@@ -392,7 +451,12 @@ export default function FirewallTab({ connection, highlightAppId, onHighlightHan
             padding: "6px 12px",
           }}
         >
-          <input type="checkbox" style={{ accentColor: "var(--ink)" }} />
+          <input
+            type="checkbox"
+            checked={showInstalled}
+            onChange={(e) => setShowInstalled(e.target.checked)}
+            style={{ accentColor: "var(--ink)" }}
+          />
           Show all installed apps
         </label>
       </div>
@@ -452,7 +516,7 @@ export default function FirewallTab({ connection, highlightAppId, onHighlightHan
                 </div>
                 <div className="row-sub" data-testid="firewall-banner-subtitle">
                   {enabled
-                    ? `${totalBlockedCount} apps blocked · ${activeApps.length} active`
+                    ? `${totalBlockedCount} apps blocked · ${unblockedApps.length} active`
                     : "Click the toggle to start shielding your network."}
                 </div>
               </div>
@@ -554,16 +618,16 @@ export default function FirewallTab({ connection, highlightAppId, onHighlightHan
 
       <CollapsibleSection
         title="Active Apps"
-        count={activeApps.length}
+        count={unblockedApps.length}
         testId="active-apps-section"
         accent="var(--mint)"
       >
-        {activeApps.length === 0 ? (
+        {unblockedApps.length === 0 ? (
           <div className="row-sub" style={{ padding: "16px 0", textAlign: "center" }}>
             No active apps detected
           </div>
         ) : (
-          activeApps.map((app) => (
+          unblockedApps.map((app) => (
             <AppRow
               key={app.appId}
               app={app}

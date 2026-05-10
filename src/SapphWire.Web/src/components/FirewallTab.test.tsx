@@ -5,6 +5,10 @@ vi.mock("../useActiveApps", () => ({
   useActiveApps: vi.fn(() => ({ apps: [], sparkHistory: {} })),
 }));
 
+vi.mock("../useRankedApps", () => ({
+  useRankedApps: vi.fn(() => []),
+}));
+
 vi.mock("../useConnections", () => ({
   useConnections: vi.fn(() => []),
 }));
@@ -25,10 +29,12 @@ vi.mock("../useFirewall", () => ({
 
 import FirewallTab from "./FirewallTab";
 import { useActiveApps, type ActiveAppRow } from "../useActiveApps";
+import { useRankedApps, type RankedApp } from "../useRankedApps";
 import { useConnections, type ConnectionDetail } from "../useConnections";
 import { useFirewall } from "../useFirewall";
 
 const mockUseActiveApps = vi.mocked(useActiveApps);
+const mockUseRankedApps = vi.mocked(useRankedApps);
 const mockUseConnections = vi.mocked(useConnections);
 const mockUseFirewall = vi.mocked(useFirewall);
 
@@ -62,6 +68,18 @@ function makeApp(overrides: Partial<ActiveAppRow> = {}): ActiveAppRow {
   };
 }
 
+function makeRanked(overrides: Partial<RankedApp> = {}): RankedApp {
+  return {
+    appId: "Chrome",
+    cumulativeBytes: 5000000,
+    currentUp: 100,
+    currentDown: 200,
+    lastSeen: "2026-05-10T00:00:00Z",
+    isInstalledOnly: false,
+    ...overrides,
+  };
+}
+
 const defaultFirewall = {
   state: { blockedApps: [], isSuspended: false, error: null },
   blockApp: vi.fn(() => Promise.resolve()),
@@ -77,6 +95,7 @@ const defaultFirewall = {
 describe("FirewallTab", () => {
   beforeEach(() => {
     mockUseActiveApps.mockReturnValue({ apps: [], sparkHistory: {} });
+    mockUseRankedApps.mockReturnValue([]);
     mockUseConnections.mockReturnValue([]);
     mockUseFirewall.mockReturnValue({ ...defaultFirewall });
   });
@@ -742,5 +761,143 @@ describe("FirewallTab", () => {
     const blockedSection = screen.getByTestId("blocked-apps-section");
     expect(blockedSection).toHaveTextContent("Chrome");
     expect(screen.getByTestId("firewall-badge")).toHaveTextContent("Off duty");
+  });
+
+  // === Ranked apps ordering (Issue #13, stories 43-46) ===
+
+  it("displays apps in ranked order from useRankedApps", () => {
+    mockUseRankedApps.mockReturnValue([
+      makeRanked({ appId: "Discord", cumulativeBytes: 10000000 }),
+      makeRanked({ appId: "Chrome", cumulativeBytes: 5000000 }),
+      makeRanked({ appId: "Slack", cumulativeBytes: 1000000 }),
+    ]);
+    mockUseActiveApps.mockReturnValue({
+      apps: [
+        makeApp({ appId: "Chrome" }),
+        makeApp({ appId: "Discord", displayName: "Discord" }),
+        makeApp({ appId: "Slack", displayName: "Slack" }),
+      ],
+      sparkHistory: {},
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    const rows = screen.getAllByTestId(/^app-row-/);
+    expect(rows[0]).toHaveAttribute("data-testid", "app-row-Discord");
+    expect(rows[1]).toHaveAttribute("data-testid", "app-row-Chrome");
+    expect(rows[2]).toHaveAttribute("data-testid", "app-row-Slack");
+  });
+
+  it("shows cumulative bytes for each app", () => {
+    mockUseRankedApps.mockReturnValue([
+      makeRanked({ appId: "Chrome", cumulativeBytes: 5000000 }),
+    ]);
+    mockUseActiveApps.mockReturnValue({
+      apps: [makeApp({ appId: "Chrome" })],
+      sparkHistory: {},
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    const cumulative = screen.getByTestId("cumulative-Chrome");
+    expect(cumulative).toHaveTextContent("5.0 MB");
+  });
+
+  it("merges live data from useActiveApps with ranked order", () => {
+    mockUseRankedApps.mockReturnValue([
+      makeRanked({ appId: "Chrome", cumulativeBytes: 5000000 }),
+    ]);
+    mockUseActiveApps.mockReturnValue({
+      apps: [makeApp({ appId: "Chrome", up: 9999, down: 8888 })],
+      sparkHistory: {},
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    expect(screen.getByTestId("rate-up-Chrome")).toHaveTextContent("10.0 KB/s");
+    expect(screen.getByTestId("rate-down-Chrome")).toHaveTextContent("8.9 KB/s");
+  });
+
+  it("shows ranked apps that have no active data", () => {
+    mockUseRankedApps.mockReturnValue([
+      makeRanked({ appId: "OldApp", cumulativeBytes: 2000000 }),
+    ]);
+    mockUseActiveApps.mockReturnValue({ apps: [], sparkHistory: {} });
+
+    render(<FirewallTab connection={null} />);
+
+    expect(screen.getByTestId("app-row-OldApp")).toBeInTheDocument();
+    expect(screen.getByTestId("cumulative-OldApp")).toHaveTextContent("2.0 MB");
+    expect(screen.getByTestId("rate-up-OldApp")).toHaveTextContent("0 B/s");
+  });
+
+  it("appends active apps not in ranked list", () => {
+    mockUseRankedApps.mockReturnValue([
+      makeRanked({ appId: "Chrome" }),
+    ]);
+    mockUseActiveApps.mockReturnValue({
+      apps: [
+        makeApp({ appId: "Chrome" }),
+        makeApp({ appId: "NewApp", displayName: "NewApp" }),
+      ],
+      sparkHistory: {},
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    const rows = screen.getAllByTestId(/^app-row-/);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveAttribute("data-testid", "app-row-Chrome");
+    expect(rows[1]).toHaveAttribute("data-testid", "app-row-NewApp");
+  });
+
+  // === Show all installed apps toggle (Issue #13, stories 47-49) ===
+
+  it("show installed toggle is unchecked by default", () => {
+    render(<FirewallTab connection={null} />);
+    const toggle = screen.getByTestId("show-installed-apps-toggle");
+    const checkbox = toggle.querySelector("input[type='checkbox']") as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+  });
+
+  it("clicking show installed toggle passes includeInstalled=true to useRankedApps", () => {
+    render(<FirewallTab connection={null} />);
+    const toggle = screen.getByTestId("show-installed-apps-toggle");
+    const checkbox = toggle.querySelector("input[type='checkbox']") as HTMLInputElement;
+
+    fireEvent.click(checkbox);
+
+    expect(mockUseRankedApps).toHaveBeenLastCalledWith(null, true);
+  });
+
+  it("installed-only apps appear in active section when toggle is on", () => {
+    mockUseRankedApps.mockReturnValue([
+      makeRanked({ appId: "Chrome", cumulativeBytes: 5000000 }),
+      makeRanked({ appId: "Notepad", cumulativeBytes: 0, isInstalledOnly: true }),
+    ]);
+    mockUseActiveApps.mockReturnValue({
+      apps: [makeApp({ appId: "Chrome" })],
+      sparkHistory: {},
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    const activeSection = screen.getByTestId("active-apps-section");
+    expect(activeSection).toHaveTextContent("Chrome");
+    expect(activeSection).toHaveTextContent("Notepad");
+  });
+
+  it("cumulative bytes displays correctly in GB range", () => {
+    mockUseRankedApps.mockReturnValue([
+      makeRanked({ appId: "Chrome", cumulativeBytes: 2_500_000_000 }),
+    ]);
+    mockUseActiveApps.mockReturnValue({
+      apps: [makeApp({ appId: "Chrome" })],
+      sparkHistory: {},
+    });
+
+    render(<FirewallTab connection={null} />);
+
+    expect(screen.getByTestId("cumulative-Chrome")).toHaveTextContent("2.5 GB");
   });
 });
